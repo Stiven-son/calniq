@@ -1,0 +1,561 @@
+<template>
+  <div class="bs-service-selector">
+    <!-- Search & View Toggle -->
+    <div class="bs-toolbar">
+      <div class="bs-search">
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="Search services..."
+          class="bs-search-input"
+        >
+        <button v-if="searchQuery" @click="searchQuery = ''" class="bs-search-clear">×</button>
+      </div>
+      <div class="bs-view-toggle">
+        <button 
+          @click="viewMode = 'grid'" 
+          class="bs-view-btn"
+          :class="{ active: viewMode === 'grid' }"
+          title="Grid view"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </button>
+        <button 
+          @click="viewMode = 'list'" 
+          class="bs-view-btn"
+          :class="{ active: viewMode === 'list' }"
+          title="List view"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="4" width="18" height="4" rx="1"/>
+            <rect x="3" y="10" width="18" height="4" rx="1"/>
+            <rect x="3" y="16" width="18" height="4" rx="1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Categories & Services -->
+    <div v-for="category in filteredCategories" :key="category.id" class="bs-category">
+      <h3 class="bs-category-title">{{ category.name }}</h3>
+      <p v-if="category.description" class="bs-category-desc">{{ category.description }}</p>
+      
+      <!-- Grid View -->
+      <div v-if="viewMode === 'grid'" class="bs-services-grid">
+        <div
+          v-for="service in category.services"
+          :key="service.id"
+          class="bs-service-card-grid"
+          :class="{ selected: getQuantity(service.id) > 0 }"
+        >
+          <div class="bs-service-image">
+            <img 
+              v-if="service.image_url" 
+              :src="service.image_url" 
+              :alt="service.name"
+            >
+            <div v-else class="bs-service-image-placeholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+            </div>
+          </div>
+          
+          <div class="bs-service-info">
+            <div class="bs-service-name">{{ service.name }}</div>
+            <div v-if="service.description" class="bs-service-desc">{{ service.description }}</div>
+            <div class="bs-service-price">
+              {{ formatPrice(service.price) }}
+              <span v-if="service.price_type !== 'fixed'" class="bs-price-unit">
+                /{{ service.price_unit || 'each' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="bs-service-actions">
+            <div v-if="getQuantity(service.id) > 0" class="bs-quantity">
+              <button class="bs-qty-btn" @click.stop="decrementQuantity(service)">−</button>
+              <span class="bs-qty-value">{{ getQuantity(service.id) }}</span>
+              <button 
+                class="bs-qty-btn" 
+                @click.stop="incrementQuantity(service)"
+                :disabled="getQuantity(service.id) >= (service.max_quantity || 10)"
+              >+</button>
+            </div>
+            <button v-else class="bs-add-btn" @click="addToCart(service)">
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- List View -->
+      <div v-else class="bs-services-list">
+        <div
+          v-for="service in category.services"
+          :key="service.id"
+          class="bs-service-card-list"
+          :class="{ selected: getQuantity(service.id) > 0 }"
+        >
+          <div class="bs-service-image-small">
+            <img 
+              v-if="service.image_url" 
+              :src="service.image_url" 
+              :alt="service.name"
+            >
+            <div v-else class="bs-service-image-placeholder-small">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+            </div>
+          </div>
+          
+          <div class="bs-service-info-list">
+            <div class="bs-service-name">{{ service.name }}</div>
+            <div v-if="service.description" class="bs-service-desc">{{ service.description }}</div>
+          </div>
+
+          <div class="bs-service-price-list">
+            {{ formatPrice(service.price) }}
+            <span v-if="service.price_type !== 'fixed'" class="bs-price-unit">
+              /{{ service.price_unit || 'each' }}
+            </span>
+          </div>
+
+          <div class="bs-service-actions-list">
+            <div v-if="getQuantity(service.id) > 0" class="bs-quantity">
+              <button class="bs-qty-btn" @click.stop="decrementQuantity(service)">−</button>
+              <span class="bs-qty-value">{{ getQuantity(service.id) }}</span>
+              <button 
+                class="bs-qty-btn" 
+                @click.stop="incrementQuantity(service)"
+                :disabled="getQuantity(service.id) >= (service.max_quantity || 10)"
+              >+</button>
+            </div>
+            <button v-else class="bs-add-btn" @click="addToCart(service)">
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="filteredCategories.length === 0" class="bs-no-results">
+      <p v-if="searchQuery">No services found for "{{ searchQuery }}"</p>
+      <p v-else>No services available</p>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, computed } from 'vue';
+
+export default {
+  name: 'ServiceSelector',
+
+  props: {
+    categories: { type: Array, default: () => [] },
+    cart: { type: Object, default: () => ({}) },
+    currency: { type: String, default: 'USD' },
+  },
+
+  emits: ['update-cart'],
+
+  setup(props, { emit }) {
+    const searchQuery = ref('');
+    const viewMode = ref('grid');
+
+    const filteredCategories = computed(() => {
+      if (!searchQuery.value.trim()) {
+        return props.categories;
+      }
+      
+      const query = searchQuery.value.toLowerCase();
+      return props.categories
+        .map(category => ({
+          ...category,
+          services: category.services?.filter(service => 
+            service.name.toLowerCase().includes(query) ||
+            (service.description && service.description.toLowerCase().includes(query))
+          ) || []
+        }))
+        .filter(category => category.services.length > 0);
+    });
+
+    function getQuantity(serviceId) {
+      return props.cart[serviceId] || 0;
+    }
+
+    function formatPrice(price) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: props.currency,
+      }).format(price);
+    }
+
+    function addToCart(service) {
+      emit('update-cart', service.id, service.min_quantity || 1);
+    }
+
+    function incrementQuantity(service) {
+      const currentQty = getQuantity(service.id);
+      const maxQty = service.max_quantity || 10;
+      if (currentQty < maxQty) {
+        emit('update-cart', service.id, currentQty + 1);
+      }
+    }
+
+    function decrementQuantity(service) {
+      const currentQty = getQuantity(service.id);
+      if (currentQty > 0) {
+        emit('update-cart', service.id, currentQty - 1);
+      }
+    }
+
+    return {
+      searchQuery,
+      viewMode,
+      filteredCategories,
+      getQuantity,
+      formatPrice,
+      addToCart,
+      incrementQuantity,
+      decrementQuantity,
+    };
+  },
+};
+</script>
+
+<style scoped>
+.bs-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.bs-search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.bs-search-input {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.bs-search-input:focus {
+  outline: none;
+  border-color: var(--bs-primary, #10b981);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.bs-search-clear {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.bs-search-clear:hover {
+  color: #6b7280;
+}
+
+.bs-view-toggle {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.bs-view-btn {
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+}
+
+.bs-view-btn:first-child {
+  border-right: 1px solid #d1d5db;
+}
+
+.bs-view-btn.active {
+  background: var(--bs-primary, #10b981);
+  color: white;
+}
+
+.bs-view-btn:hover:not(.active) {
+  background: #f3f4f6;
+}
+
+.bs-category {
+  margin-bottom: 2rem;
+}
+
+.bs-category-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #1f2937;
+}
+
+.bs-category-desc {
+  color: #6b7280;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+/* Grid View */
+.bs-services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.bs-service-card-grid {
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: white;
+  transition: all 0.2s;
+}
+
+.bs-service-card-grid:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.bs-service-card-grid.selected {
+  border-color: var(--bs-primary, #10b981);
+  background: #f0fdf4;
+}
+
+.bs-service-image {
+  width: 100%;
+  height: 150px;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.bs-service-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bs-service-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+}
+
+.bs-service-info {
+  padding: 1rem;
+}
+
+.bs-service-name {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.bs-service-desc {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bs-service-price {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--bs-primary, #10b981);
+}
+
+.bs-price-unit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.bs-service-actions {
+  padding: 0 1rem 1rem;
+}
+
+.bs-add-btn {
+  width: 100%;
+  padding: 0.625rem;
+  background: var(--bs-primary, #10b981);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.bs-add-btn:hover {
+  opacity: 0.9;
+}
+
+.bs-quantity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.bs-qty-btn {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background: white;
+  cursor: pointer;
+  font-size: 1.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+}
+
+.bs-qty-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.bs-qty-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bs-qty-value {
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* List View */
+.bs-services-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bs-service-card-list {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: white;
+  transition: all 0.2s;
+}
+
+.bs-service-card-list:hover {
+  border-color: #d1d5db;
+}
+
+.bs-service-card-list.selected {
+  border-color: var(--bs-primary, #10b981);
+  background: #f0fdf4;
+}
+
+.bs-service-image-small {
+  width: 80px;
+  height: 80px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f3f4f6;
+}
+
+.bs-service-image-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bs-service-image-placeholder-small {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+}
+
+.bs-service-info-list {
+  flex: 1;
+  min-width: 0;
+}
+
+.bs-service-price-list {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--bs-primary, #10b981);
+  white-space: nowrap;
+}
+
+.bs-service-actions-list {
+  flex-shrink: 0;
+}
+
+.bs-service-actions-list .bs-add-btn {
+  width: auto;
+  padding: 0.625rem 1.25rem;
+}
+
+.bs-no-results {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+@media (max-width: 640px) {
+  .bs-service-card-list {
+    flex-wrap: wrap;
+  }
+  
+  .bs-service-info-list {
+    flex: 1 1 calc(100% - 100px);
+  }
+  
+  .bs-service-price-list,
+  .bs-service-actions-list {
+    flex: 1 1 50%;
+  }
+}
+</style>

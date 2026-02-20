@@ -1,0 +1,125 @@
+[90m= [39m[34;4mIlluminate\Database\Eloquent\Collection[39;24m {#1384
+    [34mall[39m: [
+      [34;4mApp\Models\TimeSlot[39;24m {#6122
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m1[39m,
+        [34mstart_time[39m: "[32m08:00:00[39m",
+        [34mend_time[39m: "[32m10:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6123
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m1[39m,
+        [34mstart_time[39m: "[32m10:00:00[39m",
+        [34mend_time[39m: "[32m12:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6124
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m1[39m,
+        [34mstart_time[39m: "[32m13:00:00[39m",
+        [34mend_time[39m: "[32m15:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6125
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m1[39m,
+        [34mstart_time[39m: "[32m15:00:00[39m",
+        [34mend_time[39m: "[32m17:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6126
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m2[39m,
+        [34mstart_time[39m: "[32m08:00:00[39m",
+        [34mend_time[39m: "[32m10:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6127
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m2[39m,
+        [34mstart_time[39m: "[32m10:00:00[39m",
+        [34mend_time[39m: "[32m12:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6128
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m2[39m,
+        [34mstart_time[39m: "[32m13:00:00[39m",
+        [34mend_time[39m: "[32m15:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6129
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m2[39m,
+        [34mstart_time[39m: "[32m15:00:00[39m",
+        [34mend_time[39m: "[32m17:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6130
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m3[39m,
+        [34mstart_time[39m: "[32m08:00:00[39m",
+        [34mend_time[39m: "[32m10:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6131
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m3[39m,
+        [34mstart_time[39m: "[32m10:00:00[39m",
+        [34mend_time[39m: "[32m12:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6132
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m3[39m,
+        [34mstart_time[39m: "[32m13:00:00[39m",
+        [34mend_time[39m: "[32m15:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6133
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m3[39m,
+        [34mstart_time[39m: "[32m15:00:00[39m",
+        [34mend_time[39m: "[32m17:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6134
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m4[39m,
+        [34mstart_time[39m: "[32m08:00:00[39m",
+        [34mend_time[39m: "[32m10:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6135
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m4[39m,
+        [34mstart_time[39m: "[32m10:00:00[39m",
+        [34mend_time[39m: "[32m12:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6136
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m4[39m,
+        [34mstart_time[39m: "[32m13:00:00[39m",
+        [34mend_time[39m: "[32m15:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6137
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m4[39m,
+        [34mstart_time[39m: "[32m15:00:00[39m",
+        [34mend_time[39m: "[32m17:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6138
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m5[39m,
+        [34mstart_time[39m: "[32m08:00:00[39m",
+        [34mend_time[39m: "[32m10:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6139
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m5[39m,
+        [34mstart_time[39m: "[32m10:00:00[39m",
+        [34mend_time[39m: "[32m12:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6140
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m5[39m,
+        [34mstart_time[39m: "[32m13:00:00[39m",
+        [34mend_time[39m: "[32m15:00:00[39m",
+      },
+      [34;4mApp\Models\TimeSlot[39;24m {#6141
+        [34mlocation_id[39m: "[32m019c04b8-6dc1-71ec-a607-9fe4b14d40e7[39m",
+        [34mday_of_week[39m: [35m5[39m,
+        [34mstart_time[39m: "[32m15:00:00[39m",
+        [34mend_time[39m: "[32m17:00:00[39m",
+      },
+    ],
+  }
+
