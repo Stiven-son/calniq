@@ -1,16 +1,24 @@
 <x-filament-panels::page>
     @livewire('notifications')
-
+    {{-- Widget Text --}}
+    <form wire:submit="saveWidget">
+        {{ $this->widgetForm }}
+        <div class="mt-4 flex justify-end">
+            <x-filament::button type="submit">
+                Save Widget Text
+            </x-filament::button>
+        </div>
+    </form>
     {{-- Inline Widget --}}
     <x-filament::section>
         <x-slot name="heading">
             <div class="flex items-center gap-2">
                 <x-heroicon-o-code-bracket class="w-5 h-5" />
-                Inline Widget
+                Inline Booking Widget
             </div>
         </x-slot>
         <x-slot name="description">
-            Embeds the booking form directly into your page. Best for dedicated booking pages.
+            Embeds the full booking form directly into your page. Best for dedicated booking pages.
         </x-slot>
 
         <div class="space-y-4">
@@ -24,6 +32,107 @@
                         x-data="{ copied: false }"
                         x-on:click="
                             navigator.clipboard.writeText(@js($embedSnippet));
+                            copied = true;
+                            setTimeout(() => copied = false, 2000);
+                        "
+                        x-text="copied ? 'Copied!' : 'Copy Code'"
+                        class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors"
+                        :class="copied ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'"
+                    ></button>
+                </div>
+            </div>
+        </div>
+    </x-filament::section>
+
+    {{-- Pricing Widgets per Category --}}
+    @if(count($pricingCategories) > 0)
+    <x-filament::section>
+        <x-slot name="heading">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-currency-dollar class="w-5 h-5" />
+                Pricing Widgets
+            </div>
+        </x-slot>
+        <x-slot name="description">
+            Embed a pricing table for a specific service category. Visitors can select services and proceed to your booking page. Place on individual service pages for better conversions.
+        </x-slot>
+
+        <div class="space-y-6">
+            @foreach($pricingCategories as $cat)
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {{ $cat['name'] }}
+                    </h4>
+                    <span class="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                        {{ $cat['slug'] }}
+                    </span>
+                </div>
+                <pre class="bg-gray-900 text-green-400 rounded-lg p-4 text-xs overflow-x-auto font-mono"><code>{{ $cat['snippet'] }}</code></pre>
+                <div class="mt-2 flex items-center justify-between">
+                    <p class="text-xs text-gray-500">
+                        Replace <code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">YOUR_BOOKING_PAGE_URL</code> with the URL of your booking page.
+                    </p>
+                    <button
+                        x-data="{ copied: false }"
+                        x-on:click="
+                            navigator.clipboard.writeText(@js($cat['snippet']));
+                            copied = true;
+                            setTimeout(() => copied = false, 2000);
+                        "
+                        x-text="copied ? 'Copied!' : 'Copy Code'"
+                        class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex-shrink-0"
+                        :class="copied ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'"
+                    ></button>
+                </div>
+            </div>
+            @endforeach
+        </div>
+    </x-filament::section>
+    @endif
+
+    {{-- UTM Tracker --}}
+    <x-filament::section>
+        <x-slot name="heading">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-signal class="w-5 h-5" />
+                UTM & Ad Tracking
+            </div>
+        </x-slot>
+        <x-slot name="description">
+            Add this tag to Google Tag Manager to capture UTM parameters, GCLID, and other ad click IDs across page navigations. The booking widget automatically reads these values.
+        </x-slot>
+
+        <div class="space-y-4">
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">GTM Custom HTML Tag</h4>
+                <p class="text-xs text-gray-500 mb-3">Create a new Custom HTML tag in GTM with trigger "All Pages" and paste this code:</p>
+                @php
+                $trackerCode = '<script>
+(function(){
+  var params=(function(){
+    var query=window.location.search.substring(1);
+    if(!query)return {};
+    var vars=query.split("&"),result={};
+    for(var i=0;i<vars.length;i++){
+      var pair=vars[i].split("=");
+      if(pair.length===2)result[decodeURIComponent(pair[0])]=decodeURIComponent(pair[1]);
+    }
+    return result;
+  })();
+  var keys=["utm_source","utm_medium","utm_campaign","utm_content","utm_term","gclid","gbraid","wbraid","fbclid","msclkid"];
+  for(var i=0;i<keys.length;i++){
+    if(params[keys[i]])localStorage.setItem("calniq_"+keys[i],params[keys[i]]);
+  }
+})();
+</script>';
+                @endphp
+                <pre class="bg-gray-900 text-green-400 rounded-lg p-4 text-xs overflow-x-auto font-mono"><code>{{ $trackerCode }}</code></pre>
+                <div class="mt-2 flex justify-end">
+                    <button
+                        x-data="{ copied: false }"
+                        x-on:click="
+                            navigator.clipboard.writeText(@js($trackerCode));
                             copied = true;
                             setTimeout(() => copied = false, 2000);
                         "

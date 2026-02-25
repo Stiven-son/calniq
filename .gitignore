@@ -22,3 +22,14 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Widget build assets (symlinks)
+/public/widget-assets/
+
+# Database dumps
+*.sql
+*.sql.gz
+
+# Misc
+NUL
+*.bak

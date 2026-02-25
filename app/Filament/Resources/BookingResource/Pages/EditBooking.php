@@ -70,7 +70,6 @@ class EditBooking extends EditRecord
         $targetDate = $data['scheduled_date'];
         $targetTimeStart = substr($data['scheduled_time_start'], 0, 5);
 
-        // Count existing bookings on the target slot, excluding the current booking
         $existingCount = DB::table('bookings')
             ->where('project_id', $record->project_id)
             ->where('location_id', $location->id)
@@ -110,20 +109,18 @@ class EditBooking extends EditRecord
 
         $rescheduled = $dateChanged || $timeChanged;
 
-        // Google Calendar sync
-        if ($record->google_event_id && $record->location?->google_calendar_id) {
+        // Google Calendar sync — NOW passes Location object instead of calendarId string
+        $location = $record->location;
+        if ($record->google_event_id && $location && $location->hasGoogleCalendar()) {
             try {
                 $calendarService = app(GoogleCalendarService::class);
-                $calendarId = $record->location->google_calendar_id;
 
                 if ($newStatus === 'cancelled') {
-                    // Delete event when cancelled
-                    $calendarService->deleteEvent($record->google_event_id, $calendarId);
+                    $calendarService->deleteEvent($record->google_event_id, $location);
                     $record->update(['google_event_id' => null]);
                 } elseif ($rescheduled) {
-                    // Delete old event, create new one
-                    $calendarService->deleteEvent($record->google_event_id, $calendarId);
-                    $newEventId = $calendarService->createEvent($record, $calendarId);
+                    $calendarService->deleteEvent($record->google_event_id, $location);
+                    $newEventId = $calendarService->createEvent($record, $location);
                     if ($newEventId) {
                         $record->update(['google_event_id' => $newEventId]);
                     }

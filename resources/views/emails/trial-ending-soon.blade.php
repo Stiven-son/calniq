@@ -15,7 +15,7 @@
         </p>
 
         <p style="color: #4b5563; line-height: 1.6;">
-            Your BookingStack free trial ends in <strong>{{ $tenant->daysRemaining() }} day{{ $tenant->daysRemaining() !== 1 ? 's' : '' }}</strong>
+            Your Calniq free trial ends in <strong>{{ $tenant->daysRemaining() }} day{{ $tenant->daysRemaining() !== 1 ? 's' : '' }}</strong>
             ({{ $tenant->isOnTrial() ? $tenant->trial_ends_at->format('F j, Y') : $tenant->subscription_ends_at->format('F j, Y') }}).
         </p>
 
@@ -34,7 +34,7 @@
         </div>
 
         <p style="color: #9ca3af; font-size: 13px; text-align: center;">
-            &copy; {{ date('Y') }} BookingStack
+            &copy; {{ date('Y') }} Calniq
         </p>
     </div>
 </body>

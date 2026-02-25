@@ -23,6 +23,11 @@ class Settings extends Page implements HasForms
     protected static ?int $navigationSort = 100;
     protected static string $view = 'filament.pages.settings';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('settings');
+    }
+
     public ?array $profileData = [];
     public ?array $bookingData = [];
     public ?array $brandingData = [];

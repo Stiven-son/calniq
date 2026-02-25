@@ -31,6 +31,8 @@ class Project extends Model
         'notification_email',
         'notification_phone',
         'is_active',
+        'widget_title',
+        'widget_subtitle',
     ];
 
     protected $casts = [

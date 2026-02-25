@@ -12,6 +12,7 @@ Route::prefix('v1/{tenantSlug}')->group(function () {
     Route::post('/promo/validate', [PublicController::class, 'validatePromo']);
     Route::post('/bookings', [PublicController::class, 'createBooking']);
     Route::get('/booking/{reference}', [PublicController::class, 'getBooking']);
+    Route::get('/pricing/{categorySlug}', [PublicController::class, 'pricing']);
 });
 
 // Auth API

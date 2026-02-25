@@ -101,9 +101,9 @@ class PublicController extends Controller
                     'price_type' => $ps->globalService->price_type,
                     'price_unit' => $ps->globalService->price_unit,
                     'image_full_url' => $ps->custom_image
-                        ? '/storage/' . $ps->custom_image
+                        ? url('/storage/' . $ps->custom_image)
                         : ($ps->globalService->image_url
-                            ? (str_starts_with($ps->globalService->image_url, 'http') ? $ps->globalService->image_url : '/storage/' . $ps->globalService->image_url)
+                            ? (str_starts_with($ps->globalService->image_url, 'http') ? $ps->globalService->image_url : url('/storage/' . $ps->globalService->image_url))
                             : null),
                     'min_quantity' => $ps->globalService->min_quantity,
                     'max_quantity' => $ps->globalService->max_quantity,
@@ -122,6 +122,8 @@ class PublicController extends Controller
                 'primary_color' => $project->primary_color,
                 'secondary_color' => $project->secondary_color,
                 'logo_url' => $project->logo_url,
+                'widget_title' => $project->widget_title,
+                'widget_subtitle' => $project->widget_subtitle,
             ],
             'categories' => $categories,
         ]);
@@ -344,6 +346,81 @@ class PublicController extends Controller
             ]),
             'message' => $booking->message,
             'created_at' => $booking->created_at->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Get services for a single category (Pricing Widget)
+     */
+    public function pricing(string $slug, string $categorySlug): JsonResponse
+    {
+        $project = $this->resolveProject($slug);
+
+        $blocked = $this->checkSubscription($project);
+        if ($blocked) return $blocked;
+
+        // Find global category by slug
+        $globalCategory = \App\Models\GlobalCategory::where('slug', $categorySlug)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$globalCategory) {
+            return response()->json(['error' => 'Category not found'], 404);
+        }
+
+        // Check if project has this category active
+        $projectCategory = ProjectCategory::where('project_id', $project->id)
+            ->where('global_category_id', $globalCategory->id)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$projectCategory) {
+            return response()->json(['error' => 'Category not available'], 404);
+        }
+
+        // Get active project services for this category
+        $projectServices = ProjectService::where('project_id', $project->id)
+            ->where('is_active', true)
+            ->whereHas('globalService', fn($q) => $q
+                ->where('global_category_id', $globalCategory->id)
+                ->where('is_active', true)
+            )
+            ->with('globalService')
+            ->orderBy('sort_order')
+            ->get();
+
+        $services = $projectServices->map(fn(ProjectService $ps) => [
+            'id' => $ps->global_service_id,
+            'name' => $ps->custom_name ?? $ps->globalService->name,
+            'description' => $ps->custom_description ?? $ps->globalService->description,
+            'price' => (float) ($ps->custom_price ?? $ps->globalService->default_price),
+            'price_type' => $ps->globalService->price_type,
+            'price_unit' => $ps->globalService->price_unit,
+            'image_full_url' => $ps->custom_image
+                ? url('/storage/' . $ps->custom_image)
+                : ($ps->globalService->image_url
+                    ? (str_starts_with($ps->globalService->image_url, 'http') ? $ps->globalService->image_url : url('/storage/' . $ps->globalService->image_url))
+                    : null),
+            'min_quantity' => $ps->globalService->min_quantity,
+            'max_quantity' => $ps->globalService->max_quantity,
+            'duration_minutes' => $ps->globalService->duration_minutes,
+        ])->values();
+
+        return response()->json([
+            'tenant' => [
+                'name' => $project->name,
+                'currency' => $project->currency,
+                'primary_color' => $project->primary_color,
+            ],
+            'category' => [
+                'id' => $globalCategory->id,
+                'name' => $globalCategory->name,
+                'slug' => $globalCategory->slug,
+                'icon_url' => $globalCategory->icon_url
+                    ? (str_starts_with($globalCategory->icon_url, 'http') ? $globalCategory->icon_url : url('/storage/' . $globalCategory->icon_url))
+                    : null,
+            ],
+            'services' => $services,
         ]);
     }
 }

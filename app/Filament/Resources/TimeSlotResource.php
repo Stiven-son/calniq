@@ -22,6 +22,11 @@ class TimeSlotResource extends Resource
     protected static ?int $navigationSort = 10;
     protected static bool $isScopedToTenant = false;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('time_slots');
+    }
+
     public static function form(Form $form): Form
     {
         $project = Filament::getTenant();

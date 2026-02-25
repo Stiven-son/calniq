@@ -20,6 +20,11 @@ class ProjectServiceResource extends Resource
     protected static ?string $modelLabel = 'Service';
     protected static ?string $pluralModelLabel = 'My Services';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('services');
+    }
+
     public static function form(Form $form): Form
     {
         return $form

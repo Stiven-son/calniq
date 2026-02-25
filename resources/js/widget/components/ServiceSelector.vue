@@ -1,5 +1,40 @@
 <template>
   <div class="bs-service-selector">
+    <!-- Category Quick Nav -->
+    <div v-if="categories.length > 1" class="bs-category-nav">
+      <button 
+        class="bs-category-nav-arrow bs-category-nav-arrow-left"
+        @click="scrollNav('left')"
+        :style="{ visibility: canScrollLeft ? 'visible' : 'hidden' }"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <div class="bs-category-nav-scroll" ref="navScroll" @scroll="updateNavArrows">
+        <button
+          v-for="category in categories"
+          :key="'nav-' + category.id"
+          class="bs-category-nav-item"
+          :class="{ active: activeCategory === category.id }"
+          @click="scrollToCategory(category.id)"
+        >
+          <img 
+            v-if="getCategoryIcon(category)" 
+            :src="getCategoryIcon(category)" 
+            :alt="category.name"
+            class="bs-category-nav-icon"
+          >
+          <span class="bs-category-nav-label">{{ category.name }}</span>
+        </button>
+      </div>
+      <button 
+        class="bs-category-nav-arrow bs-category-nav-arrow-right"
+        @click="scrollNav('right')"
+        :style="{ visibility: canScrollRight ? 'visible' : 'hidden' }"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
+
     <!-- Search & View Toggle -->
     <div class="bs-service-controls">
       <div class="bs-search-wrapper">
@@ -56,7 +91,12 @@
     </div>
 
     <!-- Categories & Services -->
-    <div v-for="category in filteredCategories" :key="category.id" class="bs-category">
+    <div 
+      v-for="category in filteredCategories" 
+      :key="category.id" 
+      class="bs-category"
+      :ref="el => setCategoryRef(category.id, el)"
+    >
       <h3 class="bs-category-title">{{ category.name }}</h3>
       <p v-if="category.description" class="bs-category-desc">{{ category.description }}</p>
       
@@ -170,6 +210,8 @@
 </template>
 
 <script>
+import { ref, nextTick, onMounted } from 'vue';
+
 export default {
   name: 'ServiceSelector',
 
@@ -177,14 +219,85 @@ export default {
     categories: { type: Array, default: () => [] },
     cart: { type: Object, default: () => ({}) },
     currency: { type: String, default: 'USD' },
+    apiBaseUrl: { type: String, default: '' },
   },
 
   emits: ['update-cart'],
 
+  setup(props) {
+    const navScroll = ref(null);
+    const canScrollLeft = ref(false);
+    const canScrollRight = ref(false);
+    const activeCategory = ref(null);
+    const categoryRefs = {};
+
+    function setCategoryRef(id, el) {
+      if (el) categoryRefs[id] = el;
+    }
+
+    function updateNavArrows() {
+      if (!navScroll.value) return;
+      const el = navScroll.value;
+      canScrollLeft.value = el.scrollLeft > 5;
+      canScrollRight.value = el.scrollLeft < (el.scrollWidth - el.clientWidth - 5);
+    }
+
+    function scrollNav(direction) {
+      if (!navScroll.value) return;
+      const amount = 200;
+      navScroll.value.scrollBy({ 
+        left: direction === 'left' ? -amount : amount, 
+        behavior: 'smooth' 
+      });
+    }
+
+    function scrollToCategory(categoryId) {
+      activeCategory.value = categoryId;
+      const el = categoryRefs[categoryId];
+      if (!el) return;
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+    }
+
+    function getCategoryIcon(category) {
+      if (!category.icon_url) return null;
+      // If already absolute URL, return as-is
+      if (category.icon_url.startsWith('http')) return category.icon_url;
+      // Build absolute URL from API base
+      if (props.apiBaseUrl) {
+        try {
+          const origin = new URL(props.apiBaseUrl).origin;
+          return origin + category.icon_url;
+        } catch(e) {}
+      }
+      return category.icon_url;
+    }
+
+    onMounted(() => {
+      nextTick(() => {
+        updateNavArrows();
+        if (props.categories.length > 0) {
+          activeCategory.value = props.categories[0].id;
+        }
+      });
+    });
+
+    return {
+      navScroll,
+      canScrollLeft,
+      canScrollRight,
+      activeCategory,
+      setCategoryRef,
+      updateNavArrows,
+      scrollNav,
+      scrollToCategory,
+      getCategoryIcon,
+    };
+  },
+
   data() {
     return {
       searchQuery: '',
-      viewMode: 'grid', // 'grid' or 'list'
+      viewMode: 'grid',
     };
   },
 
@@ -256,6 +369,109 @@ export default {
 </script>
 
 <style scoped>
+/* === Category Quick Nav === */
+.bs-category-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.bs-category-nav-arrow {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: white !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280 !important;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.bs-category-nav-arrow:hover {
+  background: #f3f4f6 !important;
+  border-color: #d1d5db;
+}
+
+.bs-category-nav-scroll {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  flex: 1;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  padding: 0.25rem 0;
+}
+
+.bs-category-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.bs-category-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid #e5e7eb;
+  background: white !important;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #6b7280 !important;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.bs-category-nav-item:hover {
+  border-color: var(--bs-primary, #10b981);
+  color: var(--bs-primary, #10b981) !important;
+}
+
+.bs-category-nav-item.active {
+  background: var(--bs-primary, #10b981) !important;
+  border-color: var(--bs-primary, #10b981);
+  color: white !important;
+}
+
+.bs-category-nav-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.bs-category-nav-label {
+  line-height: 1;
+}
+
+/* Mobile: compact nav */
+@media (max-width: 640px) {
+  .bs-category-nav-item {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    gap: 0.25rem;
+  }
+  .bs-category-nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+  .bs-category-nav-arrow {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* === Existing scoped styles === */
 .bs-service-controls {
   display: flex;
   gap: 1rem;
@@ -374,7 +590,6 @@ export default {
   font-size: 0.875rem;
 }
 
-/* Grid View Styles */
 .bs-services-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -418,7 +633,6 @@ export default {
   color: #9ca3af;
 }
 
-/* List View Styles */
 .bs-services-list {
   display: flex;
   flex-direction: column;
@@ -512,7 +726,6 @@ export default {
   color: white;
 }
 
-/* Quantity controls */
 .bs-quantity {
   display: flex;
   align-items: center;

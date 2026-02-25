@@ -23,6 +23,11 @@ class BookingResource extends Resource
     protected static ?string $navigationLabel = 'Bookings';
     protected static ?int $navigationSort = 1;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('bookings');
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -31,19 +36,23 @@ class BookingResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('customer_name')
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->disabled(fn () => auth()->user()->isWorker()),
                         Forms\Components\TextInput::make('customer_email')
                             ->email()
-                            ->required(),
+                            ->required()
+                            ->disabled(fn () => auth()->user()->isWorker()),
                         Forms\Components\TextInput::make('customer_phone')
                             ->tel()
-                            ->required(),
+                            ->required()
+                            ->disabled(fn () => auth()->user()->isWorker()),
                         Forms\Components\Select::make('customer_type')
                             ->options([
                                 'residential' => 'Residential',
                                 'commercial' => 'Commercial',
                             ])
-                            ->default('residential'),
+                            ->default('residential')
+                            ->disabled(fn () => auth()->user()->isWorker()),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Address')
@@ -51,24 +60,32 @@ class BookingResource extends Resource
                         Forms\Components\Textarea::make('address')
                             ->required()
                             ->rows(2)
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->disabled(fn () => auth()->user()->isWorker()),
                         Forms\Components\TextInput::make('address_unit')
-                            ->label('Unit/Apt'),
-                        Forms\Components\TextInput::make('city'),
-                        Forms\Components\TextInput::make('state'),
-                        Forms\Components\TextInput::make('zip'),
+                            ->label('Unit/Apt')
+                            ->disabled(fn () => auth()->user()->isWorker()),
+                        Forms\Components\TextInput::make('city')
+                            ->disabled(fn () => auth()->user()->isWorker()),
+                        Forms\Components\TextInput::make('state')
+                            ->disabled(fn () => auth()->user()->isWorker()),
+                        Forms\Components\TextInput::make('zip')
+                            ->disabled(fn () => auth()->user()->isWorker()),
                     ])->columns(4),
 
                 Forms\Components\Section::make('Schedule')
                     ->schema([
                         Forms\Components\DatePicker::make('scheduled_date')
-                            ->required(),
+                            ->required()
+                            ->disabled(fn () => auth()->user()->isWorker()),
                         Forms\Components\TimePicker::make('scheduled_time_start')
                             ->required()
-                            ->seconds(false),
+                            ->seconds(false)
+                            ->disabled(fn () => auth()->user()->isWorker()),
                         Forms\Components\TimePicker::make('scheduled_time_end')
                             ->required()
-                            ->seconds(false),
+                            ->seconds(false)
+                            ->disabled(fn () => auth()->user()->isWorker()),
                     ])->columns(3),
 
                 Forms\Components\Section::make('Pricing')
@@ -103,7 +120,8 @@ class BookingResource extends Resource
                         Forms\Components\Textarea::make('message')
                             ->label('Customer Notes')
                             ->rows(3)
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->disabled(fn () => auth()->user()->isWorker()),
                     ]),
             ]);
     }
@@ -194,9 +212,9 @@ class BookingResource extends Resource
                             try {
                                 $calendarService = app(GoogleCalendarService::class);
                                 $calendarService->deleteEvent(
-								$record->google_event_id,
-								$record->location->google_calendar_id
-								);
+                                    $record->google_event_id,
+                                    $record->location
+                                );
                                 $record->update(['google_event_id' => null]);
                             } catch (\Exception $e) {
                                 \Log::error('Failed to delete GCal event on cancel: ' . $e->getMessage());
@@ -212,7 +230,8 @@ class BookingResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => auth()->user()->hasAccessTo('bookings.delete')),
                 ]),
             ]);
     }

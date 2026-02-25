@@ -142,13 +142,10 @@
                     <tr>
                         <td style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
                             <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                                {{ $tenant->name }}<br>
-                                @if($tenant->locations->first())
-                                    {{ $tenant->locations->first()->address }}, {{ $tenant->locations->first()->city }}, {{ $tenant->locations->first()->state }} {{ $tenant->locations->first()->zip }}
-                                @endif
+                                {{ $tenant->name }}
                             </p>
                             <p style="color: #9ca3af; font-size: 11px; margin: 16px 0 0;">
-                                Powered by BookingStack
+                                <a href="https://calniq.com">Powered by Calniq</a>
                             </p>
                         </td>
                     </tr>

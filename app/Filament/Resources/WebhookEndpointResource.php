@@ -18,6 +18,11 @@ class WebhookEndpointResource extends Resource
     protected static ?string $navigationGroup = 'Integrations';
     protected static ?int $navigationSort = 30;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('webhooks');
+    }
+
     public static function form(Form $form): Form
     {
         return $form

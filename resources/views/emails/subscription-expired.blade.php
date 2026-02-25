@@ -15,7 +15,7 @@
         </p>
 
         <p style="color: #4b5563; line-height: 1.6;">
-            Your BookingStack subscription has expired. Your booking widget is now <strong>inactive</strong> and will no longer accept new bookings from your website.
+            Your Calniq subscription has expired. Your booking widget is now <strong>inactive</strong> and will no longer accept new bookings from your website.
         </p>
 
         <p style="color: #4b5563; line-height: 1.6;">
@@ -33,7 +33,7 @@
         </p>
 
         <p style="color: #9ca3af; font-size: 13px; text-align: center;">
-            &copy; {{ date('Y') }} BookingStack
+            &copy; {{ date('Y') }} Calniq
         </p>
     </div>
 </body>

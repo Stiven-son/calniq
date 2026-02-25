@@ -32,12 +32,19 @@
         </div>
       </div>
 
+      <!-- Widget Title & Subtitle -->
+      <div v-if="currentStep === 0 && (tenantData.widget_title || tenantData.widget_subtitle)" class="bs-widget-header" style="margin-bottom: 1.5rem; text-align: center;">
+        <h2 v-if="tenantData.widget_title" style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0 0 0.5rem 0;">{{ tenantData.widget_title }}</h2>
+        <p v-if="tenantData.widget_subtitle" style="font-size: 0.85rem; color: #6b7280; margin: 0; line-height: 1.4;">{{ tenantData.widget_subtitle }}</p>
+      </div>
+
       <!-- Step 1: Services -->
       <ServiceSelector
         v-if="currentStep === 0"
         :categories="categories"
         :cart="cart"
         :currency="tenantData.currency"
+        :api-base-url="apiUrl"
         @update-cart="updateCart"
       />
 
@@ -144,6 +151,13 @@
         </div>
       </div>
     </template>
+
+    <!-- Powered by Calniq -->
+    <div v-if="!tenantData.white_label" class="bs-powered-by">
+      <a href="https://calniq.com" target="_blank" rel="noopener noreferrer">
+        Powered by <strong>Calniq</strong>
+      </a>
+    </div>
   </div>
 </template>
 
@@ -401,6 +415,10 @@ export default {
           utm_source: getUrlParam('utm_source'),
           utm_medium: getUrlParam('utm_medium'),
           utm_campaign: getUrlParam('utm_campaign'),
+          ga_client_id: getGAClientId(),
+          gclid: getUrlParam('gclid'),
+          gbraid: getUrlParam('gbraid'),
+          wbraid: getUrlParam('wbraid'),
         };
 
         const response = await fetch(`${props.apiUrl}/${props.tenant}/bookings`, {
@@ -519,12 +537,54 @@ export default {
     }
 
     function getUrlParam(param) {
+      // 1. Current URL
       const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(param) || '';
+      const fromUrl = urlParams.get(param);
+      if (fromUrl) return fromUrl;
+      // 2. localStorage (saved by calniq-tracker.js on landing page)
+      try { return localStorage.getItem('calniq_' + param) || ''; } catch(e) { return ''; }
+    }
+
+    function getGAClientId() {
+      // Try GA4 cookie
+      try {
+        const cookie = document.cookie.split(';').find(c => c.trim().startsWith('_ga='));
+        if (cookie) {
+          const parts = cookie.trim().split('.');
+          if (parts.length >= 4) return parts[2] + '.' + parts[3];
+        }
+      } catch(e) {}
+      return '';
+    }
+
+    function applyPreselect(preselectString) {
+      try {
+        const pairs = preselectString.split(',');
+        for (const pair of pairs) {
+          const [serviceId, qty] = pair.split(':');
+          if (serviceId && qty) {
+            cart.value = { ...cart.value, [serviceId]: parseInt(qty) || 1 };
+          }
+        }
+      } catch(e) {
+        console.warn('BookingStack: Invalid preselect format:', preselectString);
+      }
     }
 
     onMounted(() => {
-      loadServices();
+      loadServices().then(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const preselect = urlParams.get('preselect');
+        if (preselect) {
+          applyPreselect(preselect);
+        }
+      });
+
+      window.addEventListener('bookingstack:preselect', (e) => {
+        if (e.detail?.preselect) {
+          applyPreselect(e.detail.preselect);
+        }
+      });
     });
 
     return {

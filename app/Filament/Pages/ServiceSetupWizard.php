@@ -19,6 +19,11 @@ class ServiceSetupWizard extends Page
     protected static ?string $slug = 'service-setup';
 
     protected static string $view = 'filament.pages.service-setup-wizard';
+    
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('service_setup');
+    }
 
     // ─── Livewire State ────────────────────────────────────
     public int $step = 1;

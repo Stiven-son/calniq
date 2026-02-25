@@ -36,7 +36,7 @@ class BookingService
             return $advanceCheck;
         }
 
-        // 3. Calculate totals from items (NOW uses project_services + global_services)
+        // 3. Calculate totals from items
         $itemsResult = $this->calculateBookingItems($project, $validated['items']);
         if (isset($itemsResult['error'])) {
             return $itemsResult;
@@ -71,7 +71,6 @@ class BookingService
                 $project, $location, $validated, $subtotal, $discount, $total,
                 $promoCode, $promoCodeUsed, $referenceNumber, $bookingItems
             ) {
-                // Lock existing bookings for this slot to prevent race conditions
                 if ($location) {
                     $lockedRows = DB::table('bookings')
                         ->where('project_id', $project->id)
@@ -89,7 +88,6 @@ class BookingService
                     }
                 }
 
-                // Create the booking
                 $booking = Booking::create([
                     'tenant_id' => $project->tenant_id,
                     'project_id' => $project->id,
@@ -125,12 +123,10 @@ class BookingService
                     'wbraid' => $validated['wbraid'] ?? null,
                 ]);
 
-                // Create booking items
                 foreach ($bookingItems as $item) {
                     $booking->items()->create($item);
                 }
 
-                // Increment promo code usage
                 if ($promoCode) {
                     $promoCode->increment('current_uses');
                 }
@@ -208,7 +204,6 @@ class BookingService
 
     /**
      * Calculate booking items and subtotal from global service IDs.
-     * NOW uses project_services + global_services instead of old services table.
      */
     private function calculateBookingItems(Project $project, array $items): array
     {
@@ -216,7 +211,6 @@ class BookingService
         $bookingItems = [];
 
         foreach ($items as $item) {
-            // Find the project_service for this global_service_id
             $projectService = ProjectService::where('project_id', $project->id)
                 ->where('global_service_id', $item['service_id'])
                 ->where('is_active', true)
@@ -233,9 +227,7 @@ class BookingService
 
             $globalService = $projectService->globalService;
 
-            // Use effective price (custom or default)
             $effectivePrice = $projectService->custom_price ?? $globalService->default_price;
-            // Use effective name (custom or default)
             $effectiveName = $projectService->custom_name ?? $globalService->name;
 
             $itemTotal = $effectivePrice * $item['quantity'];
@@ -243,10 +235,10 @@ class BookingService
 
             $bookingItems[] = [
                 'global_service_id' => $globalService->id,
-                'service_name' => $effectiveName,           // snapshot
+                'service_name' => $effectiveName,
                 'quantity' => $item['quantity'],
-                'unit_price' => $effectivePrice,             // snapshot
-                'total_price' => $itemTotal,                 // snapshot
+                'unit_price' => $effectivePrice,
+                'total_price' => $itemTotal,
             ];
         }
 
@@ -310,6 +302,7 @@ class BookingService
 
     /**
      * Post-booking actions: webhook, Google Calendar, emails.
+     * CHANGED: passes Location object to GoogleCalendarService instead of calendarId string.
      */
     private function dispatchPostBookingActions(
         Booking $booking,
@@ -319,18 +312,19 @@ class BookingService
         // Dispatch webhook
         $this->webhookService->dispatch($booking, 'booking.created');
 
-        // Create Google Calendar event
-        if ($location && $location->google_calendar_id) {
+        // Create Google Calendar event — NOW uses Location object
+        if ($location && $location->google_calendar_id && $location->google_refresh_token) {
             try {
                 $calendarService = app(GoogleCalendarService::class);
-                $eventId = $calendarService->createEvent($booking, $location->google_calendar_id);
+                $eventId = $calendarService->createEvent($booking, $location);
 
                 if ($eventId) {
                     $booking->update(['google_event_id' => $eventId]);
                 }
             } catch (\Exception $e) {
-                \Log::error('Failed to create Google Calendar event: ' . $e->getMessage(), [
+                \Log::error('Failed to create Google Calendar event', [
                     'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
                 ]);
             }
         }

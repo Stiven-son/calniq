@@ -36,9 +36,6 @@ class AvailabilityService
             $projectTimezone = $project->timezone ?? 'America/New_York';
             $earliestBooking = now($projectTimezone)->addHours($minAdvanceHours);
 
-            // If the requested date is today and all remaining slots would be
-            // within the min_advance_hours window, we handle it per-slot below.
-            // But if the entire date is before the earliest allowed date, reject early.
             if ($date->endOfDay()->lt($earliestBooking->startOfDay())) {
                 return [
                     'slots' => [],
@@ -91,7 +88,6 @@ class AvailabilityService
         // 8. Get busy slots from Google Calendar
         // Skip Google Calendar blocking when multiple concurrent bookings are allowed,
         // because our own bookings create GCal events that would falsely block the slot.
-        // Database booking count already tracks all BookingStack bookings accurately.
         $googleBusySlots = ($maxConcurrent <= 1)
             ? $this->getGoogleCalendarBusySlots($location, $date)
             : [];
@@ -102,7 +98,6 @@ class AvailabilityService
             $projectTimezone = $project->timezone ?? 'America/New_York';
             $earliestBooking = now($projectTimezone)->addHours($minAdvanceHours);
 
-            // Only relevant if the booking date is today or tomorrow within the window
             if ($date->isSameDay($earliestBooking) || $date->isSameDay(now($projectTimezone))) {
                 $earliestSlotTime = $earliestBooking->format('H:i');
             }
@@ -115,18 +110,15 @@ class AvailabilityService
             $startTime = substr($slot->start_time, 0, 5);
             $endTime = substr($slot->end_time, 0, 5);
 
-            // Check min_advance_hours — skip slots that are too soon
             if ($earliestSlotTime !== null && $startTime < $earliestSlotTime) {
                 return false;
             }
 
-            // Check concurrent bookings — slot is full when count >= max
             $currentCount = $bookingCounts[$startTime] ?? 0;
             if ($currentCount >= $maxConcurrent) {
                 return false;
             }
 
-            // Check Google Calendar conflicts
             foreach ($googleBusySlots as $busy) {
                 if ($startTime < $busy['end'] && $endTime > $busy['start']) {
                     return false;
@@ -144,7 +136,6 @@ class AvailabilityService
                 'end_time' => substr($slot->end_time, 0, 5),
             ];
 
-            // Only show spots_left if location supports multiple concurrent bookings
             if ($maxConcurrent > 1) {
                 $result['spots_left'] = $spotsLeft;
             }
@@ -161,7 +152,6 @@ class AvailabilityService
 
     /**
      * Check if a specific time slot is available for booking.
-     * Used during booking creation to verify the slot is still open.
      */
     public function isSlotAvailable(
         Project $project,
@@ -172,7 +162,6 @@ class AvailabilityService
         $dateCarbon = Carbon::parse($date);
         $startTime = substr($timeStart, 0, 5);
 
-        // Check blocked date
         $isBlocked = $location->blockedDates()
             ->where('blocked_date', $dateCarbon->toDateString())
             ->exists();
@@ -181,7 +170,6 @@ class AvailabilityService
             return false;
         }
 
-        // Check concurrent bookings
         $currentCount = $project->bookings()
             ->where('location_id', $location->id)
             ->where('scheduled_date', $dateCarbon->toDateString())
@@ -196,7 +184,6 @@ class AvailabilityService
 
     /**
      * Count bookings per time slot for a given date.
-     * Returns array like ['09:00' => 2, '10:00' => 1]
      */
     private function getBookingCountsPerSlot(
         Project $project,
@@ -220,33 +207,24 @@ class AvailabilityService
 
     /**
      * Get busy time ranges from Google Calendar.
+     * NOW passes Location object instead of calendar ID string.
      */
     private function getGoogleCalendarBusySlots(Location $location, Carbon $date): array
     {
-        if (!$location->google_calendar_id) {
+        if (!$location->google_calendar_id || !$location->google_refresh_token) {
             return [];
         }
 
         try {
             $calendarService = app(GoogleCalendarService::class);
+            $timezone = $calendarService->getCalendarTimezone($location);
 
-            $calendarTimezone = 'UTC';
-            try {
-                $testResult = $calendarService->testConnection($location->google_calendar_id);
-                if ($testResult['success']) {
-                    $calendarTimezone = $testResult['timezone'];
-                }
-            } catch (\Exception $e) {
-                // Use UTC if can't get calendar timezone
-            }
-
-            return $calendarService->getBusySlots(
-                $location->google_calendar_id,
-                $date->toDateString(),
-                $calendarTimezone
-            );
+            return $calendarService->getBusySlots($location, $date->toDateString(), $timezone);
         } catch (\Exception $e) {
-            \Log::warning('Failed to get Google Calendar busy slots: ' . $e->getMessage());
+            \Log::warning('Failed to get Google Calendar busy slots', [
+                'location_id' => $location->id,
+                'error' => $e->getMessage(),
+            ]);
             return [];
         }
     }

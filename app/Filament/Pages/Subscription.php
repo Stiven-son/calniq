@@ -19,6 +19,11 @@ class Subscription extends Page
 
     protected static string $view = 'filament.pages.subscription';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('subscription');
+    }
+
     public function getTenant(): Tenant
     {
         return Filament::getTenant()->tenant;

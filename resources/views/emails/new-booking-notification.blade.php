@@ -216,7 +216,7 @@
                     <tr>
                         <td style="background-color: #1f2937; padding: 24px; text-align: center;">
                             <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                                This is an automated notification from BookingStack
+                                This is an automated notification from Calniq
                             </p>
                             <p style="color: #6b7280; font-size: 11px; margin: 8px 0 0;">
                                 Booking created at {{ $booking->created_at->format('M j, Y g:i A') }}

@@ -21,6 +21,7 @@ class Location extends Model
         'zip',
         'country',
         'google_calendar_id',
+        'google_calendar_name',
         'google_refresh_token',
         'max_concurrent_bookings',
         'is_active',
@@ -30,6 +31,14 @@ class Location extends Model
         'max_concurrent_bookings' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * Check if Google Calendar is connected (has valid OAuth token).
+     */
+    public function hasGoogleCalendar(): bool
+    {
+        return !empty($this->google_refresh_token) && !empty($this->google_calendar_id);
+    }
 
     public function tenant(): BelongsTo
     {

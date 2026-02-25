@@ -11,75 +11,74 @@ use Google\Service\Calendar\FreeBusyRequestItem;
 use App\Models\Booking;
 use App\Models\Location;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class GoogleCalendarService
 {
-    private ?Client $client = null;
-    private ?Calendar $calendar = null;
-
     /**
-     * Initialize Google Client with Service Account
+     * Build a Google Client using OAuth refresh token from Location.
      */
-    private function getClient(): Client
+    private function getClientForLocation(Location $location): Client
     {
-        if ($this->client) {
-            return $this->client;
+        if (!$location->google_refresh_token) {
+            throw new \Exception("Location '{$location->name}' has no Google Calendar token. Please connect Google Calendar first.");
         }
 
-        $credentialsPath = storage_path('app/google-credentials.json');
+        $client = new Client();
+        $client->setClientId(config('services.google.client_id'));
+        $client->setClientSecret(config('services.google.client_secret'));
+        $client->setAccessType('offline');
 
-        if (!file_exists($credentialsPath)) {
-            throw new \Exception('Google credentials file not found at: ' . $credentialsPath);
+        // Decrypt and set refresh token
+        $refreshToken = decrypt($location->google_refresh_token);
+        $client->fetchAccessTokenWithRefreshToken($refreshToken);
+
+        // If Google issued a new refresh token, save it
+        $newToken = $client->getAccessToken();
+        if (isset($newToken['refresh_token']) && $newToken['refresh_token'] !== $refreshToken) {
+            $location->updateQuietly([
+                'google_refresh_token' => encrypt($newToken['refresh_token']),
+            ]);
         }
 
-        $this->client = new Client();
-        $this->client->setAuthConfig($credentialsPath);
-        $this->client->setScopes([Calendar::CALENDAR]);
-
-        return $this->client;
+        return $client;
     }
 
     /**
-     * Get Calendar Service
+     * Get Calendar service for a Location.
      */
-    private function getCalendarService(): Calendar
+    private function getCalendarServiceForLocation(Location $location): Calendar
     {
-        if ($this->calendar) {
-            return $this->calendar;
-        }
-
-        $this->calendar = new Calendar($this->getClient());
-        return $this->calendar;
+        return new Calendar($this->getClientForLocation($location));
     }
 
     /**
-     * Get busy time slots from Google Calendar for a specific date
-     * Results are cached for 2 minutes to improve performance
-     * 
-     * @param string $calendarId Google Calendar ID
-     * @param string $date Date in Y-m-d format
-     * @param string $timezone Timezone (e.g., 'Europe/Lisbon')
-     * @param bool $bypassCache Skip cache and fetch fresh data
+     * Get busy time slots from Google Calendar for a specific date.
+     * Results are cached for 2 minutes.
+     *
      * @return array Array of busy periods ['start' => 'H:i', 'end' => 'H:i']
      */
-    public function getBusySlots(string $calendarId, string $date, string $timezone = 'UTC', bool $bypassCache = false): array
+    public function getBusySlots(Location $location, string $date, string $timezone = 'UTC', bool $bypassCache = false): array
     {
-        $cacheKey = "gcal_busy:{$calendarId}:{$date}:{$timezone}";
-        
-        // Return cached data if available and not bypassing
-        if (!$bypassCache && \Cache::has($cacheKey)) {
-            return \Cache::get($cacheKey);
-        }
-        
-        try {
-            $calendar = $this->getCalendarService();
+        $calendarId = $location->google_calendar_id;
 
-            // Create date boundaries in the specified timezone
+        if (!$calendarId || !$location->google_refresh_token) {
+            return [];
+        }
+
+        $cacheKey = "gcal_busy:{$calendarId}:{$date}:{$timezone}";
+
+        if (!$bypassCache && Cache::has($cacheKey)) {
+            return Cache::get($cacheKey);
+        }
+
+        try {
+            $calendar = $this->getCalendarServiceForLocation($location);
+
             $startOfDay = Carbon::parse($date, $timezone)->startOfDay()->setTimezone('UTC');
             $endOfDay = Carbon::parse($date, $timezone)->endOfDay()->setTimezone('UTC');
 
-            // Use FreeBusy API for efficient busy time checking
             $freeBusyRequest = new FreeBusyRequest();
             $freeBusyRequest->setTimeMin($startOfDay->toRfc3339String());
             $freeBusyRequest->setTimeMax($endOfDay->toRfc3339String());
@@ -103,96 +102,41 @@ class GoogleCalendarService
                 ];
             }
 
-            // Cache for 2 minutes
-            \Cache::put($cacheKey, $busySlots, 120);
+            Cache::put($cacheKey, $busySlots, 120);
 
             return $busySlots;
 
         } catch (\Exception $e) {
-            Log::error('Google Calendar getBusySlots error: ' . $e->getMessage());
-            return []; // Return empty array on error, don't block bookings
+            Log::error('Google Calendar getBusySlots error', [
+                'location_id' => $location->id,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
         }
     }
 
     /**
-     * Check if a specific time slot is available
-     * 
-     * @param string $calendarId Google Calendar ID
-     * @param string $date Date in Y-m-d format
-     * @param string $startTime Start time in H:i format
-     * @param string $endTime End time in H:i format
-     * @param string $timezone Timezone
-     * @return bool True if slot is available
-     */
-    public function isSlotAvailable(
-        string $calendarId,
-        string $date,
-        string $startTime,
-        string $endTime,
-        string $timezone = 'UTC'
-    ): bool {
-        $busySlots = $this->getBusySlots($calendarId, $date, $timezone);
-
-        $slotStart = Carbon::parse("$date $startTime", $timezone);
-        $slotEnd = Carbon::parse("$date $endTime", $timezone);
-
-        foreach ($busySlots as $busy) {
-            $busyStart = Carbon::parse("$date {$busy['start']}", $timezone);
-            $busyEnd = Carbon::parse("$date {$busy['end']}", $timezone);
-
-            // Check for overlap
-            if ($slotStart < $busyEnd && $slotEnd > $busyStart) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Create a calendar event for a booking
-     * 
-     * @param Booking $booking
-     * @param string $calendarId Google Calendar ID
+     * Create a calendar event for a booking.
+     *
      * @return string|null Event ID if created successfully
      */
-    public function createEvent(Booking $booking, string $calendarId): ?string
+    public function createEvent(Booking $booking, Location $location): ?string
     {
+        if (!$location->google_calendar_id || !$location->google_refresh_token) {
+            return null;
+        }
+
         try {
-            $calendar = $this->getCalendarService();
-            
-            // Get timezone from the calendar itself to ensure correct time display
-            try {
-                $calendarInfo = $calendar->calendars->get($calendarId);
-                $timezone = $calendarInfo->getTimeZone();
-            } catch (\Exception $e) {
-                $timezone = $booking->project->timezone ?? 'UTC';
-            }
+            $calendar = $this->getCalendarServiceForLocation($location);
+            $calendarId = $location->google_calendar_id;
+
+            // Get timezone from the calendar
+            $timezone = $this->getCalendarTimezone($location);
 
             $event = new Event();
-            
-            // Event title
             $event->setSummary("Booking: {$booking->customer_name} - {$booking->reference_number}");
-            
-            // Event description
-            $description = $this->buildEventDescription($booking);
-            $event->setDescription($description);
-
-            // Event location
-            $fullAddress = $booking->address;
-            if ($booking->address_unit) {
-                $fullAddress .= ', ' . $booking->address_unit;
-            }
-            if ($booking->city) {
-                $fullAddress .= ', ' . $booking->city;
-            }
-            if ($booking->state) {
-                $fullAddress .= ', ' . $booking->state;
-            }
-            if ($booking->zip) {
-                $fullAddress .= ' ' . $booking->zip;
-            }
-            $event->setLocation($fullAddress);
+            $event->setDescription($this->buildEventDescription($booking));
+            $event->setLocation($this->buildFullAddress($booking));
 
             // Start time
             $startDateTime = Carbon::parse(
@@ -214,7 +158,6 @@ class GoogleCalendarService
             $end->setTimeZone($timezone);
             $event->setEnd($end);
 
-            // Create the event
             $createdEvent = $calendar->events->insert($calendarId, $event);
 
             Log::info('Google Calendar event created', [
@@ -222,35 +165,30 @@ class GoogleCalendarService
                 'event_id' => $createdEvent->getId(),
             ]);
 
-            // Invalidate cache for this date
-            $this->invalidateCache(
-                $calendarId,
-                $booking->scheduled_date->format('Y-m-d'),
-                $timezone
-            );
+            $this->invalidateCache($location, $booking->scheduled_date->format('Y-m-d'), $timezone);
 
             return $createdEvent->getId();
 
         } catch (\Exception $e) {
-            Log::error('Google Calendar createEvent error: ' . $e->getMessage(), [
+            Log::error('Google Calendar createEvent error', [
                 'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
             ]);
             return null;
         }
     }
 
     /**
-     * Update an existing calendar event
-     * 
-     * @param Booking $booking
-     * @param string $calendarId
-     * @return bool
+     * Update an existing calendar event.
      */
-    public function updateEvent(Booking $booking, string $calendarId): bool
+    public function updateEvent(Booking $booking, Location $location): bool
     {
+        if (!$location->google_calendar_id || !$location->google_refresh_token) {
+            return false;
+        }
+
         if (!$booking->google_event_id) {
-            // No existing event, create new one
-            $eventId = $this->createEvent($booking, $calendarId);
+            $eventId = $this->createEvent($booking, $location);
             if ($eventId) {
                 $booking->update(['google_event_id' => $eventId]);
                 return true;
@@ -259,24 +197,15 @@ class GoogleCalendarService
         }
 
         try {
-            $calendar = $this->getCalendarService();
-            
-            // Get timezone from the calendar itself
-            try {
-                $calendarInfo = $calendar->calendars->get($calendarId);
-                $timezone = $calendarInfo->getTimeZone();
-            } catch (\Exception $e) {
-                $timezone = $booking->project->timezone ?? 'UTC';
-            }
+            $calendar = $this->getCalendarServiceForLocation($location);
+            $calendarId = $location->google_calendar_id;
+            $timezone = $this->getCalendarTimezone($location);
 
-            // Get existing event
             $event = $calendar->events->get($calendarId, $booking->google_event_id);
 
-            // Update event details
             $event->setSummary("Booking: {$booking->customer_name} - {$booking->reference_number}");
             $event->setDescription($this->buildEventDescription($booking));
 
-            // Update times
             $startDateTime = Carbon::parse(
                 $booking->scheduled_date->format('Y-m-d') . ' ' . $booking->scheduled_time_start,
                 $timezone
@@ -305,42 +234,161 @@ class GoogleCalendarService
             return true;
 
         } catch (\Exception $e) {
-            Log::error('Google Calendar updateEvent error: ' . $e->getMessage(), [
+            Log::error('Google Calendar updateEvent error', [
                 'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
             ]);
             return false;
         }
     }
 
     /**
-     * Delete a calendar event
-     * 
-     * @param string $eventId
-     * @param string $calendarId
-     * @return bool
+     * Delete a calendar event.
      */
-    public function deleteEvent(string $eventId, string $calendarId): bool
+    public function deleteEvent(string $eventId, Location $location): bool
     {
-        try {
-            $calendar = $this->getCalendarService();
-            $calendar->events->delete($calendarId, $eventId);
+        if (!$location->google_calendar_id || !$location->google_refresh_token) {
+            return false;
+        }
 
-            Log::info('Google Calendar event deleted', [
-                'event_id' => $eventId,
-            ]);
+        try {
+            $calendar = $this->getCalendarServiceForLocation($location);
+            $calendar->events->delete($location->google_calendar_id, $eventId);
+
+            Log::info('Google Calendar event deleted', ['event_id' => $eventId]);
 
             return true;
 
         } catch (\Exception $e) {
-            Log::error('Google Calendar deleteEvent error: ' . $e->getMessage(), [
+            Log::error('Google Calendar deleteEvent error', [
                 'event_id' => $eventId,
+                'error' => $e->getMessage(),
             ]);
             return false;
         }
     }
 
     /**
-     * Build event description from booking
+     * List calendars available to the connected Google account.
+     * Used for the calendar picker dropdown.
+     *
+     * @return array ['calendar_id' => 'Calendar Name', ...]
+     */
+    public function listCalendars(Location $location): array
+    {
+        $cacheKey = "gcal_list:{$location->id}";
+
+        return Cache::remember($cacheKey, 600, function () use ($location) {
+            $calendar = $this->getCalendarServiceForLocation($location);
+            $calendarList = $calendar->calendarList->listCalendarList();
+
+            $result = [];
+            foreach ($calendarList->getItems() as $cal) {
+                // Only show calendars where user has write access
+                $accessRole = $cal->getAccessRole();
+                if (in_array($accessRole, ['owner', 'writer'])) {
+                    $name = $cal->getSummary();
+                    if ($cal->getPrimary()) {
+                        $name .= ' (Primary)';
+                    }
+                    $result[$cal->getId()] = $name;
+                }
+            }
+
+            return $result;
+        });
+    }
+
+    /**
+     * Test connection to Google Calendar.
+     */
+    public function testConnection(Location $location): array
+    {
+        if (!$location->google_calendar_id || !$location->google_refresh_token) {
+            return [
+                'success' => false,
+                'message' => 'Google Calendar not connected.',
+            ];
+        }
+
+        try {
+            $calendar = $this->getCalendarServiceForLocation($location);
+            $calendarInfo = $calendar->calendars->get($location->google_calendar_id);
+
+            return [
+                'success' => true,
+                'message' => "Connected to calendar: {$calendarInfo->getSummary()}",
+                'calendar_name' => $calendarInfo->getSummary(),
+                'timezone' => $calendarInfo->getTimeZone(),
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Connection failed: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get calendar timezone (cached for 1 hour).
+     */
+    public function getCalendarTimezone(Location $location): string
+    {
+        if (!$location->google_calendar_id || !$location->google_refresh_token) {
+            return $location->project->timezone ?? 'UTC';
+        }
+
+        $cacheKey = "gcal_tz:{$location->google_calendar_id}";
+
+        return Cache::remember($cacheKey, 3600, function () use ($location) {
+            $result = $this->testConnection($location);
+            return $result['success'] ? $result['timezone'] : ($location->project->timezone ?? 'UTC');
+        });
+    }
+
+    /**
+     * Invalidate busy slots cache for a specific date.
+     */
+    public function invalidateCache(Location $location, string $date, ?string $timezone = null): void
+    {
+        $calendarId = $location->google_calendar_id;
+        if (!$calendarId) return;
+
+        if ($timezone) {
+            Cache::forget("gcal_busy:{$calendarId}:{$date}:{$timezone}");
+        } else {
+            $commonTimezones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'];
+            foreach ($commonTimezones as $tz) {
+                Cache::forget("gcal_busy:{$calendarId}:{$date}:{$tz}");
+            }
+        }
+    }
+
+    /**
+     * Invalidate calendar list cache for a location.
+     */
+    public function invalidateCalendarListCache(Location $location): void
+    {
+        Cache::forget("gcal_list:{$location->id}");
+    }
+
+    /**
+     * Build full address string from booking.
+     */
+    private function buildFullAddress(Booking $booking): string
+    {
+        $parts = [$booking->address];
+        if ($booking->address_unit) $parts[] = $booking->address_unit;
+        if ($booking->city) $parts[] = $booking->city;
+        if ($booking->state) $parts[] = $booking->state;
+        if ($booking->zip) $parts[count($parts) - 1] .= ' ' . $booking->zip;
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * Build event description from booking.
      */
     private function buildEventDescription(Booking $booking): string
     {
@@ -369,14 +417,15 @@ class GoogleCalendarService
         $lines[] = "🛠️ Services:";
 
         foreach ($booking->items as $item) {
-            $lines[] = "  • {$item->service_name} × {$item->quantity} - \${$item->total_price}";
+            $price = $item->total_price ?? ($item->unit_price * $item->quantity);
+            $lines[] = "  • {$item->service_name} × {$item->quantity} - \${$price}";
         }
 
         $lines[] = "";
         $lines[] = "💰 Total: \${$booking->total}";
 
         if ($booking->discount_amount > 0) {
-            $lines[] = "🏷️ Discount: -\${$booking->discount_amount}" . 
+            $lines[] = "🏷️ Discount: -\${$booking->discount_amount}" .
                        ($booking->promo_code_used ? " ({$booking->promo_code_used})" : "");
         }
 
@@ -386,69 +435,5 @@ class GoogleCalendarService
         }
 
         return implode("\n", $lines);
-    }
-
-    /**
-     * Test connection to Google Calendar
-     * 
-     * @param string $calendarId
-     * @return array ['success' => bool, 'message' => string]
-     */
-    public function testConnection(string $calendarId): array
-    {
-        try {
-            $calendar = $this->getCalendarService();
-            $calendarInfo = $calendar->calendars->get($calendarId);
-
-            return [
-                'success' => true,
-                'message' => "Connected to calendar: {$calendarInfo->getSummary()}",
-                'calendar_name' => $calendarInfo->getSummary(),
-                'timezone' => $calendarInfo->getTimeZone(),
-            ];
-
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Connection failed: ' . $e->getMessage(),
-            ];
-        }
-    }
-
-    /**
-     * Get calendar timezone (cached for 1 hour)
-     * 
-     * @param string $calendarId
-     * @return string
-     */
-    public function getCalendarTimezone(string $calendarId): string
-    {
-        $cacheKey = "gcal_tz:{$calendarId}";
-        
-        return \Cache::remember($cacheKey, 3600, function () use ($calendarId) {
-            $result = $this->testConnection($calendarId);
-            return $result['success'] ? $result['timezone'] : 'UTC';
-        });
-    }
-
-    /**
-     * Invalidate cache for a specific date
-     * Call this after creating/updating/deleting events
-     * 
-     * @param string $calendarId
-     * @param string $date
-     * @param string|null $timezone
-     */
-    public function invalidateCache(string $calendarId, string $date, ?string $timezone = null): void
-    {
-        if ($timezone) {
-            \Cache::forget("gcal_busy:{$calendarId}:{$date}:{$timezone}");
-        } else {
-            // Try common timezones if timezone not specified
-            $commonTimezones = ['UTC', 'Europe/Lisbon', 'America/New_York'];
-            foreach ($commonTimezones as $tz) {
-                \Cache::forget("gcal_busy:{$calendarId}:{$date}:{$tz}");
-            }
-        }
     }
 }

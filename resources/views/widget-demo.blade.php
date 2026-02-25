@@ -29,7 +29,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
     </style>
-    @vite(['resources/js/widget/widget.js', 'resources/js/widget/widget.css'])
+    @vite(['resources/js/widget/widget.js'])
 </head>
 <body>
     @php
@@ -37,7 +37,7 @@
     @endphp
 
     <div class="demo-header">
-        <h1>BookingStack Widget Demo</h1>
+        <h1>Calniq Widget Demo</h1>
         <p>Project: {{ $tenantSlug }}</p>
     </div>
     <div class="widget-container">

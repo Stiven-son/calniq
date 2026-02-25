@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasRoles;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasTenants;
 use Filament\Panel;
@@ -15,7 +16,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
         'name',
@@ -23,6 +24,7 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         'password',
         'tenant_id',
         'is_super_admin',
+        'role',
     ];
 
     protected $hidden = [
@@ -53,10 +55,8 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         return $this->belongsTo(Tenant::class);
     }
 
-    // Filament tenancy — returns projects available to this user
     public function getTenants(Panel $panel): Collection
     {
-        // SuperAdmin panel doesn't use tenancy
         if ($panel->getId() === 'superadmin') {
             return collect();
         }

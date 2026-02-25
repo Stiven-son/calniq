@@ -20,6 +20,11 @@ class ProjectCategoryResource extends Resource
     protected static ?string $modelLabel = 'Category';
     protected static ?string $pluralModelLabel = 'My Categories';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('categories');
+    }
+
     public static function canCreate(): bool
     {
         return false; // Categories are added via Service Setup wizard

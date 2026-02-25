@@ -22,6 +22,11 @@ class BlockedDateResource extends Resource
     protected static ?int $navigationSort = 20;
     protected static bool $isScopedToTenant = false;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()->hasAccessTo('blocked_dates');
+    }
+
     public static function form(Form $form): Form
     {
         $project = Filament::getTenant();

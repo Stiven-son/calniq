@@ -47,7 +47,7 @@
                     <p class="text-gray-600 dark:text-gray-400">All available categories have been added to your project.</p>
                     <x-filament::button
                         tag="a"
-                        href="{{ \App\Filament\Pages\MyServices::getUrl() }}"
+                        href="{{ \App\Filament\Resources\ProjectServiceResource::getUrl() }}"
                         class="mt-4"
                         icon="heroicon-o-wrench-screwdriver"
                     >
@@ -273,7 +273,7 @@
             <div class="flex flex-col sm:flex-row gap-3 justify-center">
                 <x-filament::button
                     tag="a"
-                    href="{{ \App\Filament\Pages\MyServices::getUrl() }}"
+                    href="{{ \App\Filament\Resources\ProjectServiceResource::getUrl() }}"
                     icon="heroicon-o-wrench-screwdriver"
                 >
                     Manage My Services
@@ -291,7 +291,7 @@
             <div class="mt-8 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
                 <p class="text-sm text-blue-700 dark:text-blue-300">
                     <strong>Next step:</strong> Upload custom images and fine-tune pricing in
-                    <a href="{{ \App\Filament\Pages\MyServices::getUrl() }}" class="underline">My Services</a>.
+                    <a href="{{ \App\Filament\Resources\ProjectServiceResource::getUrl() }}" class="underline">My Services</a>.
                 </p>
             </div>
         </div>
