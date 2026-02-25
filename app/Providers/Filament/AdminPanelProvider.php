@@ -26,7 +26,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            ->path('panel')
             ->login()
             ->tenant(Project::class, slugAttribute: 'slug')
             ->tenantRegistration(RegisterProject::class)

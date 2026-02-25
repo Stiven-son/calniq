@@ -28,7 +28,7 @@
         </p>
 
         <div style="text-align: center; margin: 32px 0;">
-            <a href="{{ url('/admin') }}" style="display: inline-block; background: #f59e0b; color: #fff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            <a href="{{ url('/panel') }}" style="display: inline-block; background: #f59e0b; color: #fff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">
                 Go to Dashboard
             </a>
         </div>
