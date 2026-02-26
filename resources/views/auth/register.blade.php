@@ -1,6 +1,6 @@
 @extends('layouts.guest')
 
-@section('title', 'Start Free Trial — BookingStack')
+@section('title', 'Start Free Trial — Calniq')
 
 @section('content')
 <div class="max-w-2xl mx-auto px-4 py-12">
@@ -12,21 +12,21 @@
     </div>
 
     {{-- Plan Selector --}}
-    <div class="grid grid-cols-3 gap-3 mb-8">
-        @foreach(['starter' => 'Starter', 'pro' => 'Pro', 'agency' => 'Agency'] as $key => $label)
+    <div class="grid grid-cols-{{ $plans->count() }} gap-3 mb-8">
+        @foreach($plans as $plan)
             <label class="relative cursor-pointer">
-                <input type="radio" name="plan_selector" value="{{ $key }}"
+                <input type="radio" name="plan_selector" value="{{ $plan->slug }}"
                     class="peer sr-only"
-                    {{ $selectedPlan === $key ? 'checked' : '' }}
+                    {{ $selectedPlan === $plan->slug || ($loop->first && !$plans->contains('slug', $selectedPlan)) ? 'checked' : '' }}
                     onchange="document.getElementById('plan_input').value = this.value">
                 <div class="border-2 rounded-xl p-4 text-center transition
                     peer-checked:border-brand-500 peer-checked:bg-brand-50
                     border-gray-200 hover:border-gray-300">
-                    <div class="font-semibold text-gray-900">{{ $label }}</div>
-                    <div class="text-2xl font-bold text-gray-900 mt-1">${{ $plans[$key]['price'] }}</div>
+                    <div class="font-semibold text-gray-900">{{ $plan->name }}</div>
+                    <div class="text-2xl font-bold text-gray-900 mt-1">${{ (int) $plan->price }}</div>
                     <div class="text-xs text-gray-500">/month after trial</div>
                     <div class="text-xs text-gray-500 mt-2">
-                        {{ $plans[$key]['max_projects'] ? $plans[$key]['max_projects'] . ' project' . ($plans[$key]['max_projects'] > 1 ? 's' : '') : 'Unlimited projects' }}
+                        {{ $plan->getMaxProjects() ? $plan->getMaxProjects() . ' project' . ($plan->getMaxProjects() > 1 ? 's' : '') : 'Unlimited projects' }}
                     </div>
                 </div>
             </label>
@@ -37,7 +37,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
         <form method="POST" action="/register" class="space-y-5">
             @csrf
-            <input type="hidden" name="plan" id="plan_input" value="{{ $selectedPlan }}">
+            <input type="hidden" name="plan" id="plan_input" value="{{ $plans->first()?->slug }}">
 
             <div>
                 <label for="company_name" class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
@@ -101,7 +101,7 @@
             </button>
 
             <p class="text-center text-sm text-gray-500">
-                Already have an account? <a href="/admin/login" class="text-brand-600 hover:underline">Sign in</a>
+                Already have an account? <a href="/panel/login" class="text-brand-600 hover:underline">Sign in</a>
             </p>
         </form>
     </div>

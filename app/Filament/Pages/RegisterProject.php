@@ -21,6 +21,44 @@ use Illuminate\Support\Str;
 
 class RegisterProject extends RegisterTenant
 {
+    public static function canAccess(): bool
+    {
+        return auth()->user()->isOwner();
+    }
+
+    public function mount(): void
+    {
+        if (!auth()->user()->isOwner()) {
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Access Denied')
+                ->body('Only the account owner can create new projects.')
+                ->persistent()
+                ->send();
+
+            redirect(url()->previous());
+            return;
+        }
+
+        $tenant = auth()->user()->tenant;
+        if (!$tenant->canCreateProject()) {
+            $max = $tenant->getMaxProjects();
+            $planName = $tenant->getPlanName();
+
+            \Filament\Notifications\Notification::make()
+                ->warning()
+                ->title('Project limit reached')
+                ->body("Your {$planName} plan allows {$max} project(s). Upgrade to Pro to create more projects.")
+                ->persistent()
+                ->send();
+
+            redirect(url()->previous());
+            return;
+        }
+
+        parent::mount();
+    }
+
     public static function getLabel(): string
     {
         return 'New Project';

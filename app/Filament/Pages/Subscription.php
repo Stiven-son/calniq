@@ -2,10 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Plan;
 use App\Models\Tenant;
-use Filament\Actions\Action;
 use Filament\Facades\Filament;
-use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 
@@ -29,32 +28,31 @@ class Subscription extends Page
         return Filament::getTenant()->tenant;
     }
 
-    public function changePlan(string $plan): void
+    public function changePlan(int $planId): void
     {
-        if (!in_array($plan, ['starter', 'pro', 'agency'])) {
-            return;
-        }
+        $plan = Plan::where('id', $planId)->where('is_active', true)->first();
+        if (!$plan) return;
 
         $tenant = $this->getTenant();
-        $currentPlan = $tenant->plan;
 
         // Check downgrade limits
-        $limits = Tenant::PLAN_LIMITS[$plan];
-        if ($limits['max_projects'] !== null && $tenant->projects()->count() > $limits['max_projects']) {
+        $maxProjects = $plan->getMaxProjects();
+        if ($maxProjects !== null && $tenant->projects()->count() > $maxProjects) {
             Notification::make()
                 ->danger()
                 ->title('Cannot downgrade')
-                ->body("You have {$tenant->projects()->count()} projects. The {$plan} plan allows only {$limits['max_projects']}. Please delete extra projects first.")
+                ->body("You have {$tenant->projects()->count()} projects. The {$plan->name} plan allows only {$maxProjects}. Please delete extra projects first.")
                 ->send();
             return;
         }
 
-        $tenant->changePlan($plan);
+        $oldName = $tenant->getPlanName();
+        $tenant->changePlan($planId);
 
         Notification::make()
             ->success()
             ->title('Plan changed')
-            ->body("Your plan has been changed from " . ucfirst($currentPlan) . " to " . ucfirst($plan) . ".")
+            ->body("Your plan has been changed from {$oldName} to {$plan->name}.")
             ->send();
     }
 }

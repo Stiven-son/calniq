@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Plan;
 use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
@@ -16,14 +17,16 @@ class RegisterController extends Controller
 {
     public function show(Request $request)
     {
-        $plan = $request->query('plan', 'starter');
-        if (!in_array($plan, ['starter', 'pro', 'agency'])) {
-            $plan = 'starter';
-        }
+        $plans = Plan::where('is_active', true)
+            ->where('is_public', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        $selectedSlug = $request->query('plan', 'starter');
 
         return view('auth.register', [
-            'selectedPlan' => $plan,
-            'plans' => Tenant::PLAN_LIMITS,
+            'selectedPlan' => $selectedSlug,
+            'plans' => $plans,
         ]);
     }
 
@@ -35,18 +38,24 @@ class RegisterController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'nullable|string|max:50',
             'password' => ['required', 'confirmed', Password::min(8)],
-            'plan' => 'required|in:starter,pro,agency',
+            'plan' => 'required|exists:plans,slug',
         ]);
+
+        // Find the plan
+        $plan = Plan::where('slug', $validated['plan'])
+            ->where('is_active', true)
+            ->firstOrFail();
 
         $tenant = null;
 
-        DB::transaction(function () use ($validated, &$tenant) {
+        DB::transaction(function () use ($validated, $plan, &$tenant) {
             // Create tenant
             $tenant = Tenant::create([
                 'name' => $validated['company_name'],
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
-                'plan' => $validated['plan'],
+                'plan' => explode('-', $plan->slug)[0], // legacy: "starter", "pro"
+                'plan_id' => $plan->id,
                 'subscription_status' => 'trial',
                 'trial_ends_at' => now()->addDays(14),
             ]);
@@ -68,19 +77,21 @@ class RegisterController extends Controller
                 'currency' => 'USD',
             ]);
 
-            // Create user
+            // Create user (Owner)
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'tenant_id' => $tenant->id,
+                'is_owner' => true,
+                'role' => 'admin',
             ]);
 
             Auth::login($user);
         });
 
-        // Redirect to admin panel
+        // Redirect to panel
         $project = $tenant->projects()->first();
-        return redirect("/admin/{$project->slug}");
+        return redirect("/panel/{$project->slug}");
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Tenant extends Model
@@ -14,65 +15,74 @@ class Tenant extends Model
         'name',
         'email',
         'phone',
-        'plan',
+        'plan',           // legacy varchar — will be removed later
+        'plan_id',        // FK to plans table
         'subscription_status',
         'stripe_customer_id',
         'subscription_ends_at',
         'trial_ends_at',
         'notification_days_before',
         'last_notified_at',
+        'referred_by',
+        'is_partner',
     ];
 
     protected $casts = [
         'subscription_ends_at' => 'datetime',
         'trial_ends_at' => 'datetime',
         'last_notified_at' => 'datetime',
+        'is_partner' => 'boolean',
     ];
 
-    // ── Plan Limits ──────────────────────────────────────────
+    // ── Plan Limits (via Plan model) ─────────────────────────
 
-    const PLAN_LIMITS = [
-        'starter' => [
-            'max_projects' => 1,
-            'max_bookings_per_month' => 100,
-            'white_label' => false,
-            'promo_codes' => false,
-            'price' => 29,
-        ],
-        'pro' => [
-            'max_projects' => 5,
-            'max_bookings_per_month' => null, // unlimited
-            'white_label' => true,
-            'promo_codes' => true,
-            'price' => 59,
-        ],
-        'agency' => [
-    'max_projects' => 20,
-    'max_bookings_per_month' => null,
-    'white_label' => true,
-    'promo_codes' => true,
-    'price' => 149,
-],
-    ];
-
-    public function getPlanLimits(): array
+    /**
+     * Get plan limit by key.
+     * Uses Plan model → limits JSON.
+     */
+    public function getPlanLimit(string $key, $default = null)
     {
-        return self::PLAN_LIMITS[$this->plan] ?? self::PLAN_LIMITS['starter'];
-    }
-
-    public function getPlanPrice(): int
-    {
-        return $this->getPlanLimits()['price'];
+        return $this->currentPlan?->getLimit($key, $default) ?? $default;
     }
 
     public function getMaxProjects(): ?int
     {
-        return $this->getPlanLimits()['max_projects'];
+        return $this->getPlanLimit('max_projects');
     }
 
     public function getMaxBookingsPerMonth(): ?int
     {
-        return $this->getPlanLimits()['max_bookings_per_month'];
+        return $this->getPlanLimit('max_bookings_per_month');
+    }
+
+    public function getMaxAdminsPerProject(): ?int
+    {
+        return $this->getPlanLimit('max_admins_per_project', 1);
+    }
+
+    public function getMaxManagersPerProject(): ?int
+    {
+        return $this->getPlanLimit('max_managers_per_project', 1);
+    }
+
+    public function getMaxWorkersPerProject(): ?int
+    {
+        return $this->getPlanLimit('max_workers_per_project', 1);
+    }
+
+    public function getPlanPrice(): float
+    {
+        return (float) ($this->currentPlan?->price ?? 0);
+    }
+
+    public function getPlanName(): string
+    {
+        return $this->currentPlan?->name ?? 'No Plan';
+    }
+
+    public function allowsAddons(): bool
+    {
+        return $this->currentPlan?->allows_addons ?? false;
     }
 
     public function canCreateProject(): bool
@@ -87,18 +97,50 @@ class Tenant extends Model
         $max = $this->getMaxBookingsPerMonth();
         if ($max === null) return true;
 
-        $count = \App\Models\Booking::whereHas('project', fn ($q) => $q->where('tenant_id', $this->id))
+        return $this->getMonthlyBookingCount() < $max;
+    }
+
+    public function getMonthlyBookingCount(): int
+    {
+        return Booking::whereHas('project', fn ($q) => $q->where('tenant_id', $this->id))
             ->where('created_at', '>=', now()->startOfMonth())
+            ->count();
+    }
+
+    /**
+     * Check if tenant can add a user with given role to a project.
+     */
+    public function canAddUserWithRole(string $role, $projectId): bool
+    {
+        $maxKey = "max_{$role}s_per_project";
+        $max = $this->getPlanLimit($maxKey);
+        if ($max === null) return true;
+
+        $count = \Illuminate\Support\Facades\DB::table('project_user')
+            ->where('project_id', $projectId)
+            ->where('role', $role)
             ->count();
 
         return $count < $max;
     }
 
-    public function getMonthlyBookingCount(): int
+    // ── Backward Compatibility (remove after full migration) ─
+
+    /**
+     * @deprecated Use currentPlan relationship instead
+     */
+    public function getPlanLimits(): array
     {
-        return \App\Models\Booking::whereHas('project', fn ($q) => $q->where('tenant_id', $this->id))
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->count();
+        $plan = $this->currentPlan;
+        if (!$plan) {
+            return [
+                'max_projects' => 1,
+                'max_bookings_per_month' => 100,
+                'price' => 0,
+            ];
+        }
+
+        return array_merge($plan->limits, ['price' => (int) $plan->price]);
     }
 
     // ── Subscription Status ──────────────────────────────────
@@ -112,9 +154,10 @@ class Tenant extends Model
 
     public function isActive(): bool
     {
-        // Active subscription
-        if ($this->subscription_status === 'active' && $this->subscription_ends_at && $this->subscription_ends_at->isFuture()) {
-            return true;
+        // Active subscription (no end date = indefinite, e.g. staging/demo)
+        if ($this->subscription_status === 'active') {
+            if (!$this->subscription_ends_at) return true;
+            return $this->subscription_ends_at->isFuture();
         }
 
         // On trial
@@ -150,10 +193,12 @@ class Tenant extends Model
         return $this->subscriptionDaysRemaining();
     }
 
-    public function activateSubscription(string $plan, int $months = 1): void
+    public function activateSubscription(int $planId, int $months = 1): void
     {
+        $plan = Plan::find($planId);
         $this->update([
-            'plan' => $plan,
+            'plan_id' => $planId,
+            'plan' => $plan ? explode('-', $plan->slug)[0] : $this->plan, // keep legacy in sync
             'subscription_status' => 'active',
             'subscription_ends_at' => now()->addMonths($months),
             'last_notified_at' => null,
@@ -174,9 +219,13 @@ class Tenant extends Model
         ]);
     }
 
-    public function changePlan(string $newPlan): void
+    public function changePlan(int $planId): void
     {
-        $this->update(['plan' => $newPlan]);
+        $plan = Plan::find($planId);
+        $this->update([
+            'plan_id' => $planId,
+            'plan' => $plan ? explode('-', $plan->slug)[0] : $this->plan,
+        ]);
     }
 
     public function getStatusBadge(): string
@@ -205,6 +254,21 @@ class Tenant extends Model
 
     // ── Relationships ────────────────────────────────────────
 
+    public function currentPlan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'plan_id');
+    }
+
+    public function referrer(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class, 'referred_by');
+    }
+
+    public function referrals(): HasMany
+    {
+        return $this->hasMany(Tenant::class, 'referred_by');
+    }
+
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
@@ -213,5 +277,10 @@ class Tenant extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function owner()
+    {
+        return $this->users()->where('is_owner', true)->first();
     }
 }

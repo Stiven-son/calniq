@@ -13,7 +13,7 @@ class ListTeamMembers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()->label('Invite Team Member'),
+            Actions\CreateAction::make(),
         ];
     }
 }
