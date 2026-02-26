@@ -4,6 +4,7 @@ namespace App\Filament\SuperAdmin\Resources;
 
 use App\Filament\SuperAdmin\Resources\TenantResource\Pages;
 use App\Models\Booking;
+use App\Models\Plan;
 use App\Models\Project;
 use App\Models\Tenant;
 use Filament\Forms;
@@ -44,12 +45,13 @@ class TenantResource extends Resource
 
                 Forms\Components\Section::make('Subscription')
                     ->schema([
-                        Forms\Components\Select::make('plan')
-                            ->options([
-                                'starter' => 'Starter ($29/mo)',
-                                'pro' => 'Pro ($59/mo)',
-                                'agency' => 'Agency ($149/mo)',
-                            ])
+                        Forms\Components\Select::make('plan_id')
+                            ->label('Plan')
+                            ->options(fn () => Plan::where('is_active', true)
+                                ->orderBy('sort_order')
+                                ->get()
+                                ->mapWithKeys(fn ($plan) => [$plan->id => "{$plan->name} (\${$plan->price}/mo)"])
+                            )
                             ->required(),
                         Forms\Components\Select::make('subscription_status')
                             ->options([
@@ -89,12 +91,15 @@ class TenantResource extends Resource
                     ->searchable()
                     ->copyable()
                     ->size('sm'),
-                Tables\Columns\BadgeColumn::make('plan')
-                    ->colors([
-                        'gray' => 'starter',
-                        'warning' => 'pro',
-                        'success' => 'agency',
-                    ]),
+                Tables\Columns\TextColumn::make('currentPlan.name')
+                    ->label('Plan')
+                    ->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'Starter' => 'gray',
+                        'Pro' => 'warning',
+                        'Partner' => 'info',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('subscription_status')
                     ->label('Status')
                     ->badge()
@@ -128,12 +133,9 @@ class TenantResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\SelectFilter::make('plan')
-                    ->options([
-                        'starter' => 'Starter',
-                        'pro' => 'Pro',
-                        'agency' => 'Agency',
-                    ]),
+                Tables\Filters\SelectFilter::make('plan_id')
+                    ->label('Plan')
+                    ->options(fn () => Plan::where('is_active', true)->pluck('name', 'id')),
                 Tables\Filters\SelectFilter::make('subscription_status')
                     ->label('Status')
                     ->options([
@@ -152,20 +154,21 @@ class TenantResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalDescription('This will activate the subscription for 1 month from today.')
-                    ->action(fn (Tenant $record) => $record->activateSubscription($record->plan, 1))
+                    ->action(fn (Tenant $record) => $record->activateSubscription($record->plan_id, 1))
                     ->visible(fn (Tenant $record) => $record->subscription_status !== 'active'),
                 Tables\Actions\Action::make('activateCustom')
                     ->label('Activate Custom')
                     ->icon('heroicon-o-calendar')
                     ->color('info')
                     ->form([
-                        Forms\Components\Select::make('plan')
-                            ->options([
-                                'starter' => 'Starter ($29/mo)',
-                                'pro' => 'Pro ($59/mo)',
-                                'agency' => 'Agency ($149/mo)',
-                            ])
-                            ->default(fn (Tenant $record) => $record->plan)
+                        Forms\Components\Select::make('plan_id')
+                            ->label('Plan')
+                            ->options(fn () => Plan::where('is_active', true)
+                                ->orderBy('sort_order')
+                                ->get()
+                                ->mapWithKeys(fn ($plan) => [$plan->id => "{$plan->name} (\${$plan->price}/mo)"])
+                            )
+                            ->default(fn (Tenant $record) => $record->plan_id)
                             ->required(),
                         Forms\Components\TextInput::make('months')
                             ->numeric()
@@ -176,7 +179,7 @@ class TenantResource extends Resource
                             ->required(),
                     ])
                     ->action(function (Tenant $record, array $data): void {
-                        $record->activateSubscription($data['plan'], (int) $data['months']);
+                        $record->activateSubscription($data['plan_id'], (int) $data['months']);
                     }),
                 Tables\Actions\Action::make('cancelSub')
                     ->label('Cancel')
@@ -205,7 +208,9 @@ class TenantResource extends Resource
                         Infolists\Components\TextEntry::make('name'),
                         Infolists\Components\TextEntry::make('email'),
                         Infolists\Components\TextEntry::make('phone')->placeholder('—'),
-                        Infolists\Components\TextEntry::make('plan')->badge(),
+                        Infolists\Components\TextEntry::make('currentPlan.name')
+                            ->label('Plan')
+                            ->badge(),
                         Infolists\Components\TextEntry::make('created_at')->dateTime(),
                     ])->columns(3),
             ]);
