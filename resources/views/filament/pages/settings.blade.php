@@ -53,10 +53,22 @@
     {{-- Danger Zone --}}
     <form wire:submit="deleteProject">
         {{ $this->dangerForm }}
-        <div class="mt-4 flex justify-end">
-            <x-filament::button type="submit" color="danger">
-                Delete This Project
-            </x-filament::button>
-        </div>
+
+        @if(auth()->user()->is_owner ?? false)
+            <div class="mt-4 flex justify-end gap-3">
+                <x-filament::button
+                    tag="a"
+                    href="{{ route('project.export-bookings', ['project' => $this->getProject()->slug]) }}"
+                    color="warning"
+                    icon="heroicon-o-arrow-down-tray"
+                >
+                    Download Bookings CSV
+                </x-filament::button>
+
+                <x-filament::button type="submit" color="danger" icon="heroicon-o-trash">
+                    Delete This Project
+                </x-filament::button>
+            </div>
+        @endif
     </form>
 </x-filament-panels::page>

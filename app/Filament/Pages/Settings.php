@@ -167,14 +167,12 @@ class Settings extends Page implements HasForms
         $data = $this->profileForm->getState();
         $project = $this->getProject();
 
-        // Project-level fields
         $project->update([
             'name' => $data['name'],
             'timezone' => $data['timezone'],
             'currency' => $data['currency'],
         ]);
 
-        // Account-level fields (shared)
         $project->tenant->update([
             'email' => $data['email'],
             'phone' => $data['phone'],
@@ -411,34 +409,57 @@ class Settings extends Page implements HasForms
     public function dangerForm(Form $form): Form
     {
         $project = $this->getProject();
+        $user = Auth::user();
+        $isOwner = $user->is_owner ?? false;
 
         return $form
             ->schema([
                 Forms\Components\Section::make('Danger Zone')
                     ->description('Permanently delete this project and all its data.')
                     ->icon('heroicon-o-exclamation-triangle')
-                    ->schema([
-                        Forms\Components\Placeholder::make('warning')
-                            ->content('This will permanently delete the project "' . $project->name . '" and all associated data: services, bookings, promo codes, webhooks, time slots, and blocked dates. This action cannot be undone.')
-                            ->extraAttributes(['class' => 'text-danger-600 dark:text-danger-400']),
-                        Forms\Components\TextInput::make('confirm_slug')
-                            ->label('Type the project slug to confirm')
-                            ->placeholder($project->slug)
-                            ->required()
-                            ->helperText('Enter "' . $project->slug . '" to confirm deletion.'),
-                    ]),
+                    ->schema(
+                        $isOwner
+                            ? [
+                                Forms\Components\Placeholder::make('warning')
+                                    ->content('This will permanently delete the project "' . $project->name . '" and all associated data: services, bookings, locations, promo codes, webhooks, time slots, and blocked dates. Download your bookings CSV before deleting. This action cannot be undone.')
+                                    ->extraAttributes(['class' => 'text-danger-600 dark:text-danger-400']),
+                                Forms\Components\TextInput::make('confirm_slug')
+                                    ->label('Type the project slug to confirm')
+                                    ->placeholder($project->slug)
+                                    ->required()
+                                    ->helperText('Enter "' . $project->slug . '" to confirm deletion.'),
+                            ]
+                            : [
+                                Forms\Components\Placeholder::make('no_access')
+                                    ->content('Only the account owner can delete projects.')
+                                    ->extraAttributes(['class' => 'text-gray-500']),
+                            ]
+                    ),
             ])
             ->statePath('dangerData');
     }
 
+    /**
+     * Delete project. Owner-only, minimum 1 project must remain.
+     */
     public function deleteProject(): void
     {
+        $user = Auth::user();
+
+        if (!($user->is_owner ?? false)) {
+            Notification::make()
+                ->title('Access denied')
+                ->body('Only the account owner can delete projects.')
+                ->danger()
+                ->send();
+            return;
+        }
+
         $data = $this->dangerForm->getState();
         $project = $this->getProject();
         $tenant = $project->tenant;
 
-        // Verify slug matches
-        if ($data['confirm_slug'] !== $project->slug) {
+        if (($data['confirm_slug'] ?? '') !== $project->slug) {
             Notification::make()
                 ->title('Slug does not match')
                 ->body('Please type "' . $project->slug . '" exactly to confirm deletion.')
@@ -447,7 +468,6 @@ class Settings extends Page implements HasForms
             return;
         }
 
-        // Prevent deleting last project
         $projectCount = Project::where('tenant_id', $tenant->id)->count();
         if ($projectCount <= 1) {
             Notification::make()
@@ -458,12 +478,10 @@ class Settings extends Page implements HasForms
             return;
         }
 
-        // Find another project to redirect to
         $nextProject = Project::where('tenant_id', $tenant->id)
             ->where('id', '!=', $project->id)
             ->first();
 
-        // Delete the project (CASCADE handles related records)
         $projectName = $project->name;
         $project->delete();
 
@@ -473,7 +491,6 @@ class Settings extends Page implements HasForms
             ->success()
             ->send();
 
-        // Redirect to another project's dashboard
-        $this->redirect(url("/admin/{$nextProject->slug}"));
+        $this->redirect(url("/panel/{$nextProject->slug}"));
     }
 }
