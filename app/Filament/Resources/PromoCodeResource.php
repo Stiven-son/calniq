@@ -4,7 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PromoCodeResource\Pages;
 use App\Models\PromoCode;
-use App\Models\Service;
+use App\Models\ProjectService;
 use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -110,9 +110,13 @@ class PromoCodeResource extends Resource
                             ->multiple()
                             ->options(function () {
                                 $project = Filament::getTenant();
-                                return Service::where('project_id', $project->id)
+                                return ProjectService::where('project_id', $project->id)
                                     ->where('is_active', true)
-                                    ->pluck('name', 'id');
+                                    ->with('globalService')
+                                    ->get()
+                                    ->pluck(function ($ps) {
+                                        return $ps->custom_name ?? $ps->globalService->name;
+                                    }, 'global_service_id');
                             })
                             ->searchable()
                             ->preload()

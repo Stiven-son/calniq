@@ -54,16 +54,6 @@ class Project extends Model
         return $this->hasMany(Location::class);
     }
 
-    public function serviceCategories(): HasMany
-    {
-        return $this->hasMany(ServiceCategory::class);
-    }
-
-    public function services(): HasMany
-    {
-        return $this->hasMany(Service::class);
-    }
-
     public function promoCodes(): HasMany
     {
         return $this->hasMany(PromoCode::class);

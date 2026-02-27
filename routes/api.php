@@ -27,12 +27,6 @@ Route::prefix('auth')->group(function () {
 
 // Admin API (protected, project-scoped)
 Route::prefix('admin/{projectSlug}')->middleware('auth:sanctum')->group(function () {
-    // Services
-    Route::get('/services', [AdminController::class, 'listServices']);
-    Route::post('/services', [AdminController::class, 'createService']);
-    Route::put('/services/{id}', [AdminController::class, 'updateService']);
-    Route::delete('/services/{id}', [AdminController::class, 'deleteService']);
-
     // Bookings
     Route::get('/bookings', [AdminController::class, 'listBookings']);
     Route::get('/bookings/{id}', [AdminController::class, 'getBooking']);

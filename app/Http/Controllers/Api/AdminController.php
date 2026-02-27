@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Project;
 use App\Models\PromoCode;
-use App\Models\Service;
-use App\Models\ServiceCategory;
 use App\Models\WebhookEndpoint;
 use App\Services\WebhookService;
 use Illuminate\Http\JsonResponse;
@@ -34,105 +32,6 @@ class AdminController extends Controller
 
     /**
      * List all services for project
-     */
-    public function listServices(Request $request, string $projectSlug): JsonResponse
-    {
-        $project = $this->resolveProject($request, $projectSlug);
-
-        $services = $project->services()
-            ->with('category')
-            ->orderBy('sort_order')
-            ->get();
-
-        return response()->json(['services' => $services]);
-    }
-
-    /**
-     * Create a new service
-     */
-    public function createService(Request $request, string $projectSlug): JsonResponse
-    {
-        $project = $this->resolveProject($request, $projectSlug);
-
-        $validated = $request->validate([
-            'category_id' => 'nullable|uuid|exists:service_categories,id',
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'price_type' => 'nullable|in:fixed,per_unit,per_sqft',
-            'price_unit' => 'nullable|string|max:50',
-            'image_url' => 'nullable|url|max:500',
-            'sort_order' => 'nullable|integer',
-            'min_quantity' => 'nullable|integer|min:1',
-            'max_quantity' => 'nullable|integer|min:1',
-            'duration_minutes' => 'nullable|integer|min:1',
-            'is_active' => 'nullable|boolean',
-        ]);
-
-        $service = $project->services()->create([
-            'tenant_id' => $project->tenant_id,
-            'category_id' => $validated['category_id'] ?? null,
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
-            'price' => $validated['price'],
-            'price_type' => $validated['price_type'] ?? 'fixed',
-            'price_unit' => $validated['price_unit'] ?? null,
-            'image_url' => $validated['image_url'] ?? null,
-            'sort_order' => $validated['sort_order'] ?? 0,
-            'min_quantity' => $validated['min_quantity'] ?? 1,
-            'max_quantity' => $validated['max_quantity'] ?? 10,
-            'duration_minutes' => $validated['duration_minutes'] ?? 60,
-            'is_active' => $validated['is_active'] ?? true,
-        ]);
-
-        return response()->json(['service' => $service], 201);
-    }
-
-    /**
-     * Update a service
-     */
-    public function updateService(Request $request, string $projectSlug, string $id): JsonResponse
-    {
-        $project = $this->resolveProject($request, $projectSlug);
-        $service = $project->services()->findOrFail($id);
-
-        $validated = $request->validate([
-            'category_id' => 'nullable|uuid|exists:service_categories,id',
-            'name' => 'sometimes|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'sometimes|numeric|min:0',
-            'price_type' => 'nullable|in:fixed,per_unit,per_sqft',
-            'price_unit' => 'nullable|string|max:50',
-            'image_url' => 'nullable|url|max:500',
-            'sort_order' => 'nullable|integer',
-            'min_quantity' => 'nullable|integer|min:1',
-            'max_quantity' => 'nullable|integer|min:1',
-            'duration_minutes' => 'nullable|integer|min:1',
-            'is_active' => 'nullable|boolean',
-        ]);
-
-        $service->update($validated);
-
-        return response()->json(['service' => $service->fresh()]);
-    }
-
-    /**
-     * Delete a service
-     */
-    public function deleteService(Request $request, string $projectSlug, string $id): JsonResponse
-    {
-        $project = $this->resolveProject($request, $projectSlug);
-        $service = $project->services()->findOrFail($id);
-
-        $service->delete();
-
-        return response()->json(['message' => 'Service deleted']);
-    }
-
-    // ==================== BOOKINGS ====================
-
-    /**
-     * List bookings with filters
      */
     public function listBookings(Request $request, string $projectSlug): JsonResponse
     {

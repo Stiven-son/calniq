@@ -3,8 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Models\Project;
-use App\Models\Service;
-use App\Models\ServiceCategory;
+use App\Models\ProjectCategory;
+use App\Models\ProjectService;
 use App\Models\PromoCode;
 use App\Models\Location;
 use App\Models\TimeSlot;
@@ -217,28 +217,28 @@ if (!$tenant->canCreateProject()) {
     {
         $tenantId = $source->tenant_id;
 
-        // Copy services & categories
+        // Copy project categories & services (Global Services Architecture)
         if (in_array('services', $copyItems)) {
-            $categoryMap = [];
-
-            // Categories first
-            foreach ($source->serviceCategories as $category) {
-                $newCategory = $category->replicate();
-                $newCategory->id = (string) Str::uuid7();
-                $newCategory->project_id = $project->id;
-                $newCategory->tenant_id = $tenantId;
-                $newCategory->save();
-                $categoryMap[$category->id] = $newCategory->id;
+            foreach ($source->projectCategories as $pc) {
+                ProjectCategory::create([
+                    'project_id' => $project->id,
+                    'global_category_id' => $pc->global_category_id,
+                    'sort_order' => $pc->sort_order,
+                    'is_active' => $pc->is_active,
+                ]);
             }
 
-            // Then services
-            foreach ($source->services as $service) {
-                $newService = $service->replicate();
-                $newService->id = (string) Str::uuid7();
-                $newService->project_id = $project->id;
-                $newService->tenant_id = $tenantId;
-                $newService->category_id = $categoryMap[$service->category_id] ?? $service->category_id;
-                $newService->save();
+            foreach ($source->projectServices as $ps) {
+                ProjectService::create([
+                    'project_id' => $project->id,
+                    'global_service_id' => $ps->global_service_id,
+                    'custom_name' => $ps->custom_name,
+                    'custom_description' => $ps->custom_description,
+                    'custom_price' => $ps->custom_price,
+                    'custom_image' => $ps->custom_image,
+                    'sort_order' => $ps->sort_order,
+                    'is_active' => $ps->is_active,
+                ]);
             }
         }
 

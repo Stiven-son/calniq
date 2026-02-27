@@ -13,7 +13,6 @@ class BookingItem extends Model
     protected $fillable = [
         'booking_id',
 		'global_service_id',
-        'service_id',
         'service_name',
         'quantity',
         'unit_price',
@@ -28,10 +27,5 @@ class BookingItem extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
-    }
-
-    public function service(): BelongsTo
-    {
-        return $this->belongsTo(Service::class);
     }
 }
